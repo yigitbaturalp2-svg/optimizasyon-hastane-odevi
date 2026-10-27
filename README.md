@@ -43,15 +43,30 @@ Burada:
 
 ## 🚀 Nasıl Çalıştırılır?
 
-### Yöntem 1 (En Kolayı - 1 Tıkla Başlat):
+### Windows (1 Tıkla Başlat):
 Klasör içerisindeki **`run.bat`** dosyasına çift tıklayın. Gerekli kütüphaneleri otomatik doğrular ve Streamlit arayüzünü tarayıcınızda açar.
 
-### Yöntem 2 (Terminalden):
-PowerShell veya Komut Satırında proje dizinindeyken:
-```powershell
+### macOS & Linux (Terminalden):
+Terminal açıp repo dizininde şu komutu verin:
+```bash
+chmod +x run.sh
+./run.sh
+```
+Bu betik macOS ve Linux ortamında sanal ortamı (`venv`) hazırlar, bağımlılıkları yükler ve uygulamayı doğrudan başlatır.
+
+### Manuel Başlatma (Tüm Platformlar):
+```bash
+pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 Otomatik olarak `http://localhost:8501` açılacaktır.
+
+---
+
+## 📌 Proje Fazları ve Yol Haritası
+* **Faz 001 (Tamamlandı & Doğrulandı):** Ankara Çok Katmanlı Hastane Yerleşimi ve Kapasite Tahsis Karar Destek Sistemi (25/25 test geçildi, bağımsız denetim onaylandı).
+* **Faz 002 (Sonraki Faz Görevi):** 112 Ambulans İstasyonları ve Acil Müdahale Optimizasyonu (MCLP + Çift Bacaklı Sevk Simülasyonu).
+  * Görev detayları ve teknik şartname: [SONRAKI_FAZ_GOREVI.md](SONRAKI_FAZ_GOREVI.md) / [docs/TEKNIK_GOREV_002.md](docs/TEKNIK_GOREV_002.md)
 
 ---
 

@@ -85,11 +85,12 @@ def solve_elastic_cflp(
             }
 
     if mode in (CandidateSelectionMode.BUDGET_LIMIT, CandidateSelectionMode.COMBINED):
-        if scenario.max_investment_budget_million_tl is not None and scenario.max_investment_budget_million_tl < 0:
+        budget_val = scenario.max_investment_budget_million_tl
+        if budget_val is None or budget_val <= 0 or not math.isfinite(budget_val):
             return {
                 "success": False,
                 "status": "Infeasible_Budget",
-                "message": f"Yatırım bütçesi negatif olamaz: {scenario.max_investment_budget_million_tl}",
+                "message": f"Geçersiz yatırım bütçesi: Bütçe değeri eksik, sıfır, negatif veya sonsuz olamaz ({budget_val}).",
                 "objective_value": None,
                 "selected_candidates": [],
                 "selected_candidate_ids": [],
@@ -110,7 +111,31 @@ def solve_elastic_cflp(
             }
 
     # 3. Sıfır Talep Durumu: Matematiksel olarak anında geçerli
+    # Ancak EXACT_COUNT kuralı sıfır talep olsa dahi ihlal edilemez!
     if total_demand == 0.0:
+        if mode == CandidateSelectionMode.EXACT_COUNT and scenario.p_candidates > len(candidate_facs):
+            return {
+                "success": False,
+                "status": "Infeasible_Candidate_Count",
+                "message": f"Sıfır talep durumunda dahi aday sayısı kısıtı ihlal edilemez: {scenario.p_candidates} > {len(candidate_facs)}.",
+                "objective_value": None,
+                "selected_candidates": [],
+                "selected_candidate_ids": [],
+                "active_facility_ids": [f.id for f in existing_facs],
+                "assignments": [],
+                "facility_allocated_demand": {f.id: 0.0 for f in facilities},
+                "unmet_demand_total": 0.0,
+                "unmet_percentage": 0.0,
+                "unmet_zones": [],
+                "has_unmet_demand": False,
+                "total_investment_cost_million_tl": 0.0,
+                "avg_travel_time_min": None,
+                "max_travel_time_min": 0.0,
+                "coverage_under_15_min_pct": 0.0,
+                "coverage_under_25_min_pct": 0.0,
+                "total_population": total_pop,
+                "total_annual_demand": 0.0
+            }
         return {
             "success": True,
             "status": "Optimal_Zero_Demand",

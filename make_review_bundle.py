@@ -9,7 +9,9 @@ INCLUDE_FILES = [
     "requirements.txt",
     "pytest.ini",
     "README.md",
+    "SONRAKI_FAZ_GOREVI.md",
     "run.bat",
+    "run.sh",
     "capture_verification_screens.py"
 ]
 

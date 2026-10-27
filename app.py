@@ -273,6 +273,16 @@ results_active = solve_elastic_cflp(
     allow_osrm_fallback_to_geometric=allow_fallback
 )
 
+# ----------------- ÇÖZÜCÜ BAŞARISIZLIK KONTROLÜ (ERKEN DENETİM) -----------------
+# Metadata veya sonuç okunmadan önce başarısızlık kontrol edilir; çökme önlenir
+if not results_active.get("success", False):
+    st.error(f"""
+        ⚠️ **Optimizasyon Başarısız Oldu:** {results_active.get('status')}  
+        **Açıklama:** {results_active.get('message')}  
+        Lütfen sol paneldeki parametreleri (aday tesis sayısı, bütçe tavanı veya kapasite ayarları) kontrol ediniz.
+    """)
+    st.stop()
+
 # 2. Baz Senaryo A (Mevcut Durum p=0, Karşılaştırma için arka planda hesaplanır)
 baseline_scenario = OptimizationScenario(
     name="Mevcut Durum",
@@ -311,14 +321,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# ----------------- ÇÖZÜCÜ BAŞARISIZLIK KONTROLÜ -----------------
-if not results_active.get("success", False):
-    st.error(f"""
-        ⚠️ **Optimizasyon Başarısız:** {results_active.get('status')}  
-        **Açıklama:** {results_active.get('message')}  
-        Lütfen parametreleri (aday sayısı, bütçe veya kapasite ayarları) kontrol ediniz.
-    """)
-    st.stop()
+# Başarısızlık kontrolü yukarıda erken denetim olarak yapıldı.
 
 # ----------------- ÜST KPI KARTLARI (ÖLÇÜLEBİLİR METRİKLER) -----------------
 c1, c2, c3, c4, c5 = st.columns(5)

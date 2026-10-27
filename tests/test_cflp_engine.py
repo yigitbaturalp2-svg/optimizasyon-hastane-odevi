@@ -571,3 +571,52 @@ def test_deterministic_reproducibility():
     assert res1["selected_candidate_ids"] == res2["selected_candidate_ids"]
     assert res1["objective_value"] == res2["objective_value"]
     assert res1["unmet_demand_total"] == res2["unmet_demand_total"]
+
+
+def test_phase2_stage_a_invalid_budget_explicitly_rejected():
+    """
+    FAZ 002 ASAMA A DOGRULAMA TESTI:
+    BUDGET_LIMIT veya COMBINED modlarinda eksik (None), sifir, negatif veya sonsuz butce
+    degerleri acikca reddedilmeli ve Infeasible_Budget statusu donmelidir.
+    """
+    demands = [DemandZone("D1", "Semt", "Ilce", 39.9, 32.8, 10000, 3500, "Test")]
+    candidates = [
+        Facility("C1", "Aday", "Ilce", 39.91, 32.81, DataStatus.CANDIDATE_INVESTMENT,
+                 FacilityType.ADAY_SAGLIK_KAMPUSU, 500, 100000, 500.0, "Test", 0.5, False,
+                 can_receive_hospital_transfer=True)
+    ]
+
+    for invalid_budget in [None, 0.0, -100.0, float("inf"), float("-inf")]:
+        scenario = OptimizationScenario(
+            name="InvalidBudgetTest", description="Test",
+            candidate_selection_mode=CandidateSelectionMode.BUDGET_LIMIT,
+            max_investment_budget_million_tl=invalid_budget
+        )
+        res = solve_elastic_cflp(demands, candidates, scenario)
+        assert res["success"] is False
+        assert res["status"] == "Infeasible_Budget"
+        assert "Geçersiz yatırım bütçesi" in res["message"]
+
+
+def test_phase2_stage_a_zero_demand_exact_count_violation_rejected():
+    """
+    FAZ 002 ASAMA A DOGRULAMA TESTI:
+    Sifir talep durumunda bile EXACT_COUNT kurali ihlal edilemez.
+    Aday havuzunda 1 aday varken EXACT_COUNT ile p=3 istenirse sessiz basari uretilemez.
+    """
+    demands = [DemandZone("D1", "Semt", "Ilce", 39.9, 32.8, 0, 0.0, "Test")]
+    candidates = [
+        Facility("C1", "Aday", "Ilce", 39.91, 32.81, DataStatus.CANDIDATE_INVESTMENT,
+                 FacilityType.ADAY_SAGLIK_KAMPUSU, 500, 100000, 500.0, "Test", 0.5, False,
+                 can_receive_hospital_transfer=True)
+    ]
+
+    scenario = OptimizationScenario(
+        name="ZeroDemandExactCountTest", description="Test",
+        candidate_selection_mode=CandidateSelectionMode.EXACT_COUNT,
+        p_candidates=3
+    )
+    res = solve_elastic_cflp(demands, candidates, scenario)
+    assert res["success"] is False
+    assert res["status"] == "Infeasible_Candidate_Count"
+    assert "kısıtı" in res["message"] or "aday" in res["message"].lower()
