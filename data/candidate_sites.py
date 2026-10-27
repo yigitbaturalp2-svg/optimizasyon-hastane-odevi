@@ -1,8 +1,13 @@
 """
 ANKARA SAĞLIKNET - Yeni Yatırım Aday Lokasyonları (Simülasyon/Öneri Tesisleri)
 Statü: CANDIDATE_INVESTMENT
-Açıklama: Bu tesisler mevcut durumda fiziken bulunmayıp, kentsel büyüme koridorları ve
-ulaşım kesişim noktaları analiz edilerek senaryo bazlı yatırım simülasyonu için önerilmiştir.
+
+Açıklama ve Tesis Rolü Ayrımı (TEKNİK GÖREV 001.3):
+- Aday Sağlık Kampüsleri (6 Adet): CAND_01, CAND_03, CAND_04, CAND_05, CAND_07, CAND_09
+  Bu tesisler tam hastane olarak planlanmış olup can_receive_hospital_transfer = True'dur.
+- Aday Acil Müdahale Üsleri (4 Adet): CAND_02, CAND_06, CAND_08, CAND_10
+  Bu tesisler genel yataklı hastane DEĞİLDİR; ilk müdahale ve acil üssü (112 takviye istasyonu)
+  olarak önerilmiştir. Genel hastane optimizasyonunda can_receive_hospital_transfer = False'dur.
 """
 
 from core.models import Facility, FacilityType, DataStatus
@@ -22,7 +27,14 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (Batı Aksı Kentsel Gelişme Koridoru)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_02",
@@ -32,13 +44,20 @@ CANDIDATE_HOSPITALS = [
         lon=32.6520,
         status=DataStatus.CANDIDATE_INVESTMENT,
         facility_type=FacilityType.ADAY_ACIL_USSU,
-        bed_capacity=500,
+        bed_capacity=0,  # Acil üssü: Yataklı hastane değildir
         annual_emergency_capacity=300000,
         investment_cost_million_tl=580.0,
         source="Simülasyon Varsayımı (Bağlıca-Çayyolu Bağlantı Aksı)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Acil Müdahale Üssü)",
+        can_receive_hospital_transfer=False,  # Genel hastane nakil hedefi olamaz!
+        is_comprehensive_hospital=False,
+        name_source="Acil Sağlık ve İlk Müdahale İstasyonu Planlama Simülasyonu",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="İlk Müdahale Üssü Kapasite Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_03",
@@ -54,7 +73,14 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (Güneydoğu Çankaya Yoğun Konut Bölgesi)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_04",
@@ -70,7 +96,14 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (Doğu Ankara Çevre Yolu Entegrasyonu)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_05",
@@ -86,23 +119,37 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (Kuzey Keçiören & Bağlum Gelişim Aksı)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_06",
-        name="Batıkent Çakırlar Sağlık Tesisi Adayı",
+        name="Batıkent Çakırlar Acil Müdahale Üssü Adayı",
         district="Yenimahalle",
         lat=39.9850,
         lon=32.7150,
         status=DataStatus.CANDIDATE_INVESTMENT,
         facility_type=FacilityType.ADAY_ACIL_USSU,
-        bed_capacity=450,
+        bed_capacity=0,  # Acil üssü
         annual_emergency_capacity=280000,
         investment_cost_million_tl=510.0,
         source="Simülasyon Varsayımı (Batı Yenimahalle Konut Gelişim Sahası)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Acil Müdahale Üssü)",
+        can_receive_hospital_transfer=False,  # Genel hastane nakil hedefi olamaz!
+        is_comprehensive_hospital=False,
+        name_source="Acil Sağlık ve İlk Müdahale İstasyonu Planlama Simülasyonu",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="İlk Müdahale Üssü Kapasite Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_07",
@@ -118,23 +165,37 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (İncek Üniversiteler & Konut Havzası)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_08",
-        name="Pursaklar Saray Lojistik Sağlık Merkezi Adayı",
+        name="Pursaklar Saray Acil Müdahale Üssü Adayı",
         district="Pursaklar",
         lat=40.0750,
         lon=32.9350,
         status=DataStatus.CANDIDATE_INVESTMENT,
         facility_type=FacilityType.ADAY_ACIL_USSU,
-        bed_capacity=400,
+        bed_capacity=0,  # Acil üssü
         annual_emergency_capacity=250000,
         investment_cost_million_tl=480.0,
         source="Simülasyon Varsayımı (Havalimanı Yolu & Sanayi Koridoru)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Acil Müdahale Üssü)",
+        can_receive_hospital_transfer=False,  # Genel hastane nakil hedefi olamaz!
+        is_comprehensive_hospital=False,
+        name_source="Acil Sağlık ve İlk Müdahale İstasyonu Planlama Simülasyonu",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="İlk Müdahale Üssü Kapasite Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_09",
@@ -150,22 +211,36 @@ CANDIDATE_HOSPITALS = [
         source="Simülasyon Varsayımı (Güney Ankara Konya Yolu Girişi)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Planlanan)",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="Ankara Kentsel Gelişme ve Ulaşım Ana Planı Analizi (Simülasyon Önerisi)",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="Hedef Yatak Kapasitesi Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     ),
     Facility(
         id="CAND_10",
-        name="Polatlı Sanayi Kavşağı Bölge Takviye Adayı",
+        name="Polatlı Sanayi Kavşağı Acil Müdahale Üssü Adayı",
         district="Polatlı",
         lat=39.5850,
         lon=32.1650,
         status=DataStatus.CANDIDATE_INVESTMENT,
         facility_type=FacilityType.ADAY_ACIL_USSU,
-        bed_capacity=350,
+        bed_capacity=0,  # Acil üssü
         annual_emergency_capacity=210000,
         investment_cost_million_tl=430.0,
         source="Simülasyon Varsayımı (Eskişehir Yolu Çeper Takviye İstasyonu)",
         confidence_score=0.5,
         is_existing=False,
-        operational_status="Aday Yatırım (Planlanan)"
+        operational_status="Aday Yatırım (Acil Müdahale Üssü)",
+        can_receive_hospital_transfer=False,  # Genel hastane nakil hedefi olamaz!
+        is_comprehensive_hospital=False,
+        name_source="Acil Sağlık ve İlk Müdahale İstasyonu Planlama Simülasyonu",
+        coordinate_source="GIS İmar ve Karayolu Kesişim Noktası Modellemesi",
+        capacity_source="İlk Müdahale Üssü Kapasite Normu (Simülasyon)",
+        last_verified_date=None,
+        capacity_is_simulated=True
     )
 ]

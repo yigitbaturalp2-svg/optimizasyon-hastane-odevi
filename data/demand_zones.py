@@ -1,9 +1,13 @@
 """
 ANKARA SAĞLIKNET - Talep Merkezleri (İlçe ve Semt Nüfusları)
 Kaynak: TÜİK Adrese Dayalı Nüfus Kayıt Sistemi (ADNKS) 2023 Verileri
-Açıklama: Ankara'nın ~5.8 milyonluk toplam kentsel ve çeper nüfusu 32 ana talep bölgesine
-ayrılmıştır. Yıllık acil servis başvuru talebi, T.C. Sağlık Bakanlığı istatistiklerine göre
-kişi başı yıllık ~0.35 acil başvuru katsayısıyla hesaplanmıştır.
+
+Nüfus ve Talep Doğrulama Raporu:
+- TÜİK ADNKS 2023 Ankara İl Toplam Nüfusu: 5,803,482 kişi
+- Modellenen 32 Kentsel / Metropol / Yakın Çeper Bölgesi Nüfusu: 5,570,000 kişi (%95.98 temsil)
+- Kapsam Dışı Bırakılan Uzak Kırsal Nüfus (Ayaş, Güdül, Beypazarı/Nallıhan kırsalı vb.): ~233,482 kişi
+- Yıllık Acil Servis Başvuru Katsayısı: 0.35 başvuru/kişi/yıl (T.C. Sağlık Bakanlığı İstatistik Yıllığı normu)
+- Toplam Yıllık Modellenen Acil Başvuru Talebi: 1,949,500 başvuru/yıl (5,570,000 * 0.35)
 """
 
 from core.models import DemandZone

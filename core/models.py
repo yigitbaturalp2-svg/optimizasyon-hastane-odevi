@@ -1,6 +1,6 @@
 """
 ANKARA SAĞLIKNET - Çekirdek Veri Modelleri ve Tipleri
-Bu modül, tesis, talep ve senaryo veri yapılarını ve güvenilirlik statülerini tanımlar.
+Bu modül, tesis, talep ve senaryo veri yapılarını, uygunluk kurallarını ve şeffaf veri kökenini (provenance) tanımlar.
 """
 
 from enum import Enum
@@ -24,6 +24,14 @@ class FacilityType(str, Enum):
     ADAY_ACIL_USSU = "Aday Acil Müdahale Üssü"
 
 
+class CandidateSelectionMode(str, Enum):
+    """Aday tesis seçim ve bütçe kısıtı türü."""
+    EXACT_COUNT = "EXACT_COUNT"         # Tam p adet yeni hastane açılması kuralı: sum y_j == p
+    MAX_COUNT = "MAX_COUNT"             # En fazla p adet yeni hastane açılması kuralı: sum y_j <= p
+    BUDGET_LIMIT = "BUDGET_LIMIT"       # Toplam yatırım bütçesi sınırı: sum F_j * y_j <= B
+    COMBINED = "COMBINED"               # Hem en fazla p adet hem bütçe sınırı: sum y_j <= p AND sum F_j * y_j <= B
+
+
 @dataclass
 class Facility:
     """Sağlık tesisi veri modeli."""
@@ -41,7 +49,18 @@ class Facility:
     confidence_score: float = 1.0         # 1.0 = Resmi doğrulanmış, 0.5 = Tahmini
     is_existing: bool = True
     operational_status: str = "Aktif Hizmette"
-    is_comprehensive_hospital: bool = False  # Varsayılan: False. Doğrulanmamış tesisler kapsamlı sayılmaz.
+    
+    # Hizmet Verme Yetkinliği ve Tesis Rolü (TEKNİK GÖREV 001.3 Kuralı)
+    # Varsayılan False: Açıkça hastane nakil yetkinliği doğrulanmamış hiçbir tesis hastane optimizasyonuna giremez!
+    can_receive_hospital_transfer: bool = False
+    is_comprehensive_hospital: bool = False  # Üçüncü basamak / kapsamlı hastane statüsü
+
+    # Ayrıntılı Veri Kökeni (Data Provenance)
+    name_source: str = ""
+    coordinate_source: str = ""
+    capacity_source: str = ""
+    last_verified_date: Optional[str] = None
+    capacity_is_simulated: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -59,8 +78,29 @@ class Facility:
             "confidence_score": self.confidence_score,
             "is_existing": self.is_existing,
             "operational_status": self.operational_status,
-            "is_comprehensive_hospital": self.is_comprehensive_hospital
+            "can_receive_hospital_transfer": self.can_receive_hospital_transfer,
+            "is_comprehensive_hospital": self.is_comprehensive_hospital,
+            "name_source": self.name_source,
+            "coordinate_source": self.coordinate_source,
+            "capacity_source": self.capacity_source,
+            "last_verified_date": self.last_verified_date,
+            "capacity_is_simulated": self.capacity_is_simulated
         }
+
+
+def is_eligible_for_hospital_optimization(facility: Facility) -> bool:
+    """
+    Bir tesisin genel hastane nakil optimizasyonunda hasta kabul hedefi olmaya
+    uygun olup olmadığını belirler.
+    Kural: can_receive_hospital_transfer açıkça True olmalıdır.
+    Acil müdahale üsleri (ADAY_ACIL_USSU) genel hastane nakil hedefi olamaz.
+    """
+    if not getattr(facility, "can_receive_hospital_transfer", False):
+        return False
+    # Acil müdahale üssü genel hastane olamaz
+    if facility.facility_type == FacilityType.ADAY_ACIL_USSU:
+        return False
+    return True
 
 
 def is_verified_comprehensive_hospital(facility: Facility) -> bool:
@@ -112,9 +152,11 @@ class OptimizationScenario:
     """Optimizasyon çalıştırma senaryosu."""
     name: str
     description: str
-    p_candidates: int                               # Açılacak yeni aday tesis sayısı
-    weight_travel_time: float                       # Ulaşım süresi ağırlığı [0, 1]
-    weight_investment_cost: float                   # Yatırım maliyeti ağırlığı [0, 1]
+    candidate_selection_mode: CandidateSelectionMode = CandidateSelectionMode.EXACT_COUNT
+    p_candidates: int = 1                           # Açılacak hedef aday tesis sayısı
+    max_investment_budget_million_tl: Optional[float] = None  # Maksimum parasal yatırım bütçesi (Milyon TL)
+    weight_travel_time: float = 1.0                 # Ulaşım süresi ağırlığı [0, 1]
+    weight_investment_cost: float = 0.0             # Yatırım maliyeti ağırlığı [0, 1]
     hour: int = 13                                  # Günün saati [0, 23]
     enable_capacity_limits: bool = True             # CFLP vs UFLP
     penalize_unmet_demand: float = 1000.0           # Karşılanamayan talep ceza katsayısı (M)

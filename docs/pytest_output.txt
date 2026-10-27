@@ -5,21 +5,30 @@ rootdir: C:\Users\yigit\.gemini\antigravity\scratch\ankara-hastane-optimizasyon
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.15.1
-collecting ... collected 14 items
+collecting ... collected 23 items
 
-tests/test_cflp_engine.py::test_closed_facility_receives_zero_demand PASSED [  7%]
-tests/test_cflp_engine.py::test_capacity_limit_strictly_enforced PASSED  [ 14%]
-tests/test_cflp_engine.py::test_unmet_demand_reported_when_capacity_insufficient PASSED [ 21%]
-tests/test_cflp_engine.py::test_budget_constraint_exact_p_selected PASSED [ 28%]
-tests/test_cflp_engine.py::test_scenarios_produce_different_solutions PASSED [ 35%]
-tests/test_cflp_engine.py::test_toy_cflp_analytical_optimum PASSED       [ 42%]
-tests/test_cflp_engine.py::test_elastic_conservation_of_demand PASSED    [ 50%]
-tests/test_cflp_engine.py::test_demand_and_facility_ids_remain_immutable_after_optimization PASSED [ 57%]
-tests/test_cflp_engine.py::test_zero_facilities_yields_valid_100pct_unmet_demand_solution PASSED [ 64%]
-tests/test_cflp_engine.py::test_exact_count_validation_when_candidates_insufficient PASSED [ 71%]
-tests/test_cflp_engine.py::test_exact_count_validation_when_p_exceeds_available_candidates PASSED [ 78%]
-tests/test_cflp_engine.py::test_comprehensive_hospital_flag_defaults_to_false_and_requires_verified_type PASSED [ 85%]
-tests/test_cflp_engine.py::test_stage1_failure_strictly_aborts_stage2 PASSED [ 92%]
-tests/test_cflp_engine.py::test_unreachable_edges_excluded_and_zero_infinite_in_objective PASSED [100%]
+tests/test_cflp_engine.py::test_closed_facility_receives_zero_demand PASSED [  4%]
+tests/test_cflp_engine.py::test_capacity_limit_strictly_enforced PASSED  [  8%]
+tests/test_cflp_engine.py::test_unmet_demand_reported_when_capacity_insufficient PASSED [ 13%]
+tests/test_cflp_engine.py::test_budget_constraint_exact_p_selected PASSED [ 17%]
+tests/test_cflp_engine.py::test_scenarios_produce_different_solutions PASSED [ 21%]
+tests/test_cflp_engine.py::test_toy_cflp_analytical_optimum PASSED       [ 26%]
+tests/test_cflp_engine.py::test_elastic_conservation_of_demand PASSED    [ 30%]
+tests/test_cflp_engine.py::test_demand_and_facility_ids_remain_immutable_after_optimization PASSED [ 34%]
+tests/test_cflp_engine.py::test_emergency_posts_cannot_be_selected_for_hospital_transfers PASSED [ 39%]
+tests/test_cflp_engine.py::test_verified_existing_hospitals_pass_eligibility PASSED [ 43%]
+tests/test_cflp_engine.py::test_missing_capability_not_defaulted_to_true PASSED [ 47%]
+tests/test_cflp_engine.py::test_candidate_hospital_pool_count PASSED     [ 52%]
+tests/test_cflp_engine.py::test_population_and_demand_data_consistency PASSED [ 56%]
+tests/test_cflp_engine.py::test_stage1_invalid_or_none_aborts_stage2 PASSED [ 60%]
+tests/test_cflp_engine.py::test_stage2_failure_reported_as_failure PASSED [ 65%]
+tests/test_cflp_engine.py::test_small_fractional_allocations_not_discarded PASSED [ 69%]
+tests/test_cflp_engine.py::test_grouped_zone_allocations_handle_multi_hospital_splits PASSED [ 73%]
+tests/test_cflp_engine.py::test_routing_noroute_timeout_nan_inf_handled_distinctly PASSED [ 78%]
+tests/test_cflp_engine.py::test_geometric_routing_metadata_declares_simulation PASSED [ 82%]
+tests/test_cflp_engine.py::test_budget_limit_mode_strictly_respected PASSED [ 86%]
+tests/test_cflp_engine.py::test_exact_count_vs_max_count_semantics PASSED [ 91%]
+tests/test_cflp_engine.py::test_unserved_demand_has_undefined_travel_time PASSED [ 95%]
+tests/test_cflp_engine.py::test_deterministic_reproducibility PASSED     [100%]
 
-============================= 14 passed in 1.26s ==============================
+============================= 23 passed in 1.54s ==============================

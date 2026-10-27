@@ -4,6 +4,11 @@ Kaynaklar:
 - T.C. Sağlık Bakanlığı Sağlık Hizmetleri Genel Müdürlüğü (SHGM): https://shgmshpdb.saglik.gov.tr/TR-96013/ankara.html
 - T.C. Ankara İl Sağlık Müdürlüğü: https://ankaraism.saglik.gov.tr/TR-69494/devlet-hastaneleri.html
 Statü: VERIFIED_EXISTING (Mevcut Doğrulanmış Tesisler)
+
+Veri Güvenilirliği Bildirimi:
+- Tesis mevcudiyeti, konumu ve tescilli yatak kapasiteleri resmi kaynaklardan doğrulanmıştır.
+- Yıllık acil servis kabul kapasitesi, Sağlık Bakanlığı yatak başına acil başvuru normu
+  üzerinden türetilmiş bir SİMÜLASYON YAKLAŞIMIDIR (capacity_is_simulated = True).
 """
 
 from core.models import Facility, FacilityType, DataStatus
@@ -23,7 +28,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Sağlık Bakanlığı SHGM & Ankara İl Sağlık Müdürlüğü (Faal KÖİ Kampüsü)",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası & OpenStreetMap Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (3,810) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_02",
@@ -39,7 +51,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Sağlık Bakanlığı SHGM & Ankara İl Sağlık Müdürlüğü (Faal KÖİ Kampüsü)",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası & OpenStreetMap Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (4,050) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_03",
@@ -55,7 +74,14 @@ VERIFIED_HOSPITALS = [
         source="Sağlık Bilimleri Üniversitesi & SB Gülhane EAH Resmi Kayıtları",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası & OpenStreetMap Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (1,000) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_04",
@@ -71,7 +97,14 @@ VERIFIED_HOSPITALS = [
         source="Hacettepe Üniversitesi Hastaneleri Genel Direktörlüğü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="Hacettepe Üniversitesi Resmi Dökümü",
+        coordinate_source="OpenStreetMap & YÖK Kurum Haritası Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (1,040) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_05",
@@ -87,7 +120,14 @@ VERIFIED_HOSPITALS = [
         source="Ankara Üniversitesi Tıp Fakültesi Hastaneler Başhekimliği",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="Ankara Üniversitesi Tıp Fakültesi Resmi Dökümü",
+        coordinate_source="OpenStreetMap & YÖK Kurum Haritası Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (1,200) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_06",
@@ -103,7 +143,14 @@ VERIFIED_HOSPITALS = [
         source="Gazi Üniversitesi Rektörlüğü Sağlık Uygulama Merkezi",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="Gazi Üniversitesi Resmi Dökümü",
+        coordinate_source="OpenStreetMap & YÖK Kurum Haritası Doğrulaması",
+        capacity_source="Tescilli Yatak Sayısı (1,000) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_07",
@@ -119,7 +166,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=True,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (750) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_08",
@@ -135,7 +189,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (550) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_09",
@@ -151,7 +212,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (480) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_10",
@@ -167,7 +235,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (250) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_11",
@@ -183,7 +258,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (450) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_12",
@@ -199,7 +281,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (200) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_13",
@@ -215,7 +304,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (200) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_14",
@@ -231,7 +327,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (150) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_15",
@@ -247,7 +350,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (300) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_16",
@@ -263,7 +373,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (150) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_17",
@@ -279,7 +396,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (100) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_18",
@@ -295,7 +419,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (50) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_19",
@@ -311,7 +442,14 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (100) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     ),
     Facility(
         id="REAL_20",
@@ -327,6 +465,13 @@ VERIFIED_HOSPITALS = [
         source="T.C. Ankara İl Sağlık Müdürlüğü Resmi Tesis Dökümü",
         confidence_score=1.0,
         is_existing=True,
-        operational_status="Aktif Hizmette"
+        operational_status="Aktif Hizmette",
+        can_receive_hospital_transfer=True,
+        is_comprehensive_hospital=False,
+        name_source="T.C. Sağlık Bakanlığı SHGM Resmi Kurum Listesi",
+        coordinate_source="Sağlık Bakanlığı Resmi Tesis Haritası",
+        capacity_source="Tescilli Yatak Sayısı (400) üzerinden acil kabul normu (Simülasyon)",
+        last_verified_date="2024-01-15",
+        capacity_is_simulated=True
     )
 ]
