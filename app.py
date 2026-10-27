@@ -1,9 +1,7 @@
 """
-Ankara İli Hastane Konumlandırma, Toplu Taşıma ve Dinamik Trafik Optimizasyon Sistemi
-(Ankara Facility Location, Transit Networks, Emergency Dispatch & Live Traffic Simulation)
-
-Ders: Optimizasyona Giriş
-Model: Capacitated Facility Location Problem (CFLP) / Mixed Integer Linear Programming (MILP)
+ANKARA SAĞLIKNET — Çok Katmanlı Sağlık Yerleşimi ve Acil Müdahale Karar Destek Sistemi
+Mimari: Modüler Katmanlı Yapı (Core / Data / UI)
+Model: Elastik Kapasiteli Tesis Yeri Seçimi (Elastic CFLP / MILP)
 """
 
 import streamlit as st
@@ -12,1128 +10,571 @@ import numpy as np
 import folium
 from folium import plugins
 from streamlit_folium import st_folium
-from scipy.spatial import ConvexHull
 
-from data import (
-    DEMAND_POINTS, CANDIDATE_SITES, EXISTING_HOSPITALS, TRANSIT_LINES,
-    METRO_STATIONS, TRANSIT_HUBS, ROAD_ARTERIES, get_traffic_multiplier,
-    calculate_baseline_existing_performance, calculate_travel_time_minutes
-)
-from optimizer import solve_hospital_location
+from core.models import DataStatus, FacilityType, OptimizationScenario
+from core.optimizer import solve_elastic_cflp
+from core.metrics import compare_scenarios
+from core.routing import get_traffic_multiplier, calculate_travel_time
+from data import get_verified_facilities, get_candidate_facilities, get_all_facilities, get_demand_zones
 
-# Sayfa Yapılandırması
+# ----------------- SAYFA YAPILANDIRMASI -----------------
 st.set_page_config(
-    page_title="Ankara Akıllı Sağlık & Ulaşım GIS",
+    page_title="ANKARA SAĞLIKNET — Karar Destek GIS",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Özel CSS ile Modern Glassmorphism & Cyberpunk Dokunuşları
+# Koyu Lacivert / Kurumsal Komuta Merkezi CSS
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0b0f19;
+        background-color: #070c18;
         color: #e2e8f0;
     }
     .header-box {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 20px 26px;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        background: linear-gradient(135deg, #0b1329 0%, #172554 100%);
+        border: 1px solid #1e3a8a;
+        border-radius: 12px;
+        padding: 18px 24px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
     .main-title {
-        font-size: 2.2rem;
+        font-size: 1.95rem;
         font-weight: 800;
-        background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+        letter-spacing: -0.02em;
+        background: linear-gradient(90deg, #60a5fa 0%, #a78bfa 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin: 0;
-        letter-spacing: -0.02em;
     }
     .subtitle {
         color: #94a3b8;
-        font-size: 1.0rem;
-        margin-top: 5px;
+        font-size: 0.95rem;
+        margin-top: 4px;
         margin-bottom: 0px;
     }
     .kpi-card {
-        background: rgba(17, 24, 39, 0.85);
+        background: rgba(15, 23, 42, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        border-top: 3px solid #38bdf8;
-        border-radius: 12px;
-        padding: 14px 18px;
+        border-top: 3px solid #3b82f6;
+        border-radius: 10px;
+        padding: 12px 16px;
         text-align: center;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-        backdrop-filter: blur(8px);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .kpi-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.3);
     }
     .kpi-val {
-        font-size: 1.85rem;
+        font-size: 1.7rem;
         font-weight: 700;
         color: #f8fafc;
-        margin: 3px 0;
+        margin: 2px 0;
     }
     .kpi-label {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 600;
         color: #94a3b8;
         text-transform: uppercase;
         letter-spacing: 0.06em;
     }
-    .badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 6px;
+    .badge-verified {
+        background: #065f46;
+        color: #a7f3d0;
+        padding: 3px 8px;
+        border-radius: 5px;
         font-size: 0.75rem;
         font-weight: 600;
-        margin-left: 6px;
+        display: inline-block;
     }
-    .badge-cflp { background: #059669; color: white; }
-    .badge-pulp { background: #2563eb; color: white; }
-    .badge-transit { background: #d97706; color: white; }
-    .badge-live { background: #dc2626; color: white; }
-    
-    .dispatch-box {
-        background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
-        border: 1px solid #6366f1;
-        border-radius: 12px;
-        padding: 16px 22px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.2);
+    .badge-simulation {
+        background: #854d0e;
+        color: #fef08a;
+        padding: 3px 8px;
+        border-radius: 5px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .alert-box {
+        background: rgba(127, 29, 29, 0.3);
+        border: 1px solid #ef4444;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper: Hex to RGB string for CSS vars
-def hex_to_rgb_str(hex_str):
-    hex_str = hex_str.lstrip('#')
-    return f"{int(hex_str[0:2], 16)}, {int(hex_str[2:4], 16)}, {int(hex_str[4:6], 16)}"
+# ----------------- VERİLERİ YÜKLE -----------------
+verified_hospitals = get_verified_facilities()
+candidate_hospitals = get_candidate_facilities()
+all_facilities = get_all_facilities()
+demand_zones = get_demand_zones()
 
-# Session State Hazırlığı
-if "hour_val" not in st.session_state:
-    st.session_state["hour_val"] = 18
-if "p_val" not in st.session_state:
-    st.session_state["p_val"] = 5
-if "travel_weight_val" not in st.session_state:
-    st.session_state["travel_weight_val"] = 65
-if "model_choice" not in st.session_state:
-    st.session_state["model_choice"] = 0
-
-# ----------------- YAN PANEL (KONTROL VE PARAMETRELER) -----------------
+# ----------------- YAN PANEL (KONTROL MERKEZİ) -----------------
 with st.sidebar:
     st.markdown("""
-        <div style='background:linear-gradient(135deg, #1e293b, #0f172a); border:1px solid #38bdf8; border-radius:12px; padding:16px; margin-bottom:18px; text-align:center;'>
-            <div style='font-size:1.8rem;'>🏥 🚑 🚇</div>
-            <div style='font-size:1.2rem; font-weight:800; color:#38bdf8;'>ANKARA SAĞLIK GIS</div>
-            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>Akıllı Şehir & Karar Destek</div>
+        <div style='background:linear-gradient(135deg, #0f172a, #1e293b); border:1px solid #3b82f6; border-radius:10px; padding:14px; margin-bottom:14px; text-align:center;'>
+            <div style='font-size:1.6rem;'>🏥 🚑 📊</div>
+            <div style='font-size:1.15rem; font-weight:800; color:#60a5fa;'>ANKARA SAĞLIKNET</div>
+            <div style='font-size:0.75rem; color:#94a3b8;'>Çok Katmanlı Karar Destek & CFLP</div>
         </div>
     """, unsafe_allow_html=True)
 
-    # 1. AKILLI TAHTA HIZLI SUNUM BUTONLARI (PRESETS)
-    st.markdown("### 🎓 Akıllı Tahta Hızlı Sunum Butonları")
-    col_pre1, col_pre2 = st.columns(2)
-    with col_pre1:
-        if st.button("🌟 Önerilen Model", help="5 Hastane, Dengeli Süre/Maliyet"):
-            st.session_state["hour_val"] = 18
-            st.session_state["p_val"] = 5
-            st.session_state["travel_weight_val"] = 65
-            st.session_state["model_choice"] = 0
-            st.rerun()
-    with col_pre2:
-        if st.button("🚨 Akşam Zirvesi", help="18:30 Yoğun Trafik & 6 Hastane"):
-            st.session_state["hour_val"] = 18
-            st.session_state["p_val"] = 6
-            st.session_state["travel_weight_val"] = 80
-            st.session_state["model_choice"] = 0
-            st.rerun()
-
-    col_pre3, col_pre4 = st.columns(2)
-    with col_pre3:
-        if st.button("🌙 Gece Nöbeti", help="02:00 Boş Yol Hızlı Ulaşım"):
-            st.session_state["hour_val"] = 2
-            st.session_state["p_val"] = 4
-            st.session_state["travel_weight_val"] = 50
-            st.session_state["model_choice"] = 0
-            st.rerun()
-    with col_pre4:
-        if st.button("💰 Düşük Bütçe", help="3 Hastane, Minimum Harcama"):
-            st.session_state["hour_val"] = 13
-            st.session_state["p_val"] = 3
-            st.session_state["travel_weight_val"] = 30
-            st.session_state["model_choice"] = 0
-            st.rerun()
-            
-    st.markdown("---")
-    
-    # 2. DİNAMİK TRAFİK SENARYOLARI
-    st.markdown("### 🚦 Saat ve Canlı Trafik Senaryosu")
-    
-    col_sc1, col_sc2 = st.columns(2)
-    with col_sc1:
-        if st.button("🌅 08:30 Sabah"):
-            st.session_state["hour_val"] = 8
-            st.rerun()
-    with col_sc2:
-        if st.button("🌇 18:30 Akşam"):
-            st.session_state["hour_val"] = 18
-            st.rerun()
-            
-    col_sc3, col_sc4 = st.columns(2)
-    with col_sc3:
-        if st.button("☀️ 13:30 Öğle"):
-            st.session_state["hour_val"] = 13
-            st.rerun()
-    with col_sc4:
-        if st.button("🌙 02:00 Gece"):
-            st.session_state["hour_val"] = 2
-            st.rerun()
-            
-    selected_hour = st.slider(
-        "Günün Saati (00:00 - 23:00):",
-        min_value=0,
-        max_value=23,
-        value=st.session_state["hour_val"],
-        step=1
-    )
-    st.session_state["hour_val"] = selected_hour
-    
-    traffic_mult = get_traffic_multiplier(selected_hour)
-    if traffic_mult >= 1.6:
-        st.markdown(f"🔴 **Ağır Zirve Trafiği (+%{(traffic_mult-1)*100:.0f} Gecikme)**")
-    elif traffic_mult >= 1.2:
-        st.markdown(f"🟡 **Orta Seviye Trafik (+%{(traffic_mult-1)*100:.0f} Gecikme)**")
-    else:
-        st.markdown("🟢 **Akıcı / Gece Açık Yol (Normal Süre)**")
-        
-    # 24 Saatlik Trafik Eğrisi Mini-Grafiği
-    st.caption("📈 Ankara 24 Saatlik Trafik Sıkışıklık Eğrisi:")
-    df_traffic_curve = pd.DataFrame({
-        "Saat": [f"{h:02d}:00" for h in range(24)],
-        "Trafik Çarpanı": [get_traffic_multiplier(h) for h in range(24)]
-    }).set_index("Saat")
-    st.line_chart(df_traffic_curve, height=120)
-        
-    st.markdown("---")
-    
-    # 3. OPTİMİZASYON MODELİ
-    st.markdown("### ⚙️ Optimizasyon Kısıtları")
-    model_type = st.radio(
-        "Modelleme Türü:",
-        ["CFLP (Kapasiteli Tesis Yeri)", "UFLP (Kapasitesiz Model)"],
-        index=st.session_state["model_choice"]
-    )
-    is_capacitated = ("CFLP" in model_type)
-    
-    p_hospitals = st.slider(
-        "Açılacak Hastane Sayısı (p):",
-        min_value=3,
-        max_value=10,
-        value=st.session_state["p_val"],
-        step=1
-    )
-    st.session_state["p_val"] = p_hospitals
-    
-    travel_weight = st.slider(
-        "Ulaşım Süresi Önceliği (%):",
-        min_value=0,
-        max_value=100,
-        value=st.session_state["travel_weight_val"],
-        step=5
-    )
-    st.session_state["travel_weight_val"] = travel_weight
-    cost_weight = 100 - travel_weight
-    
-    st.markdown("---")
-    st.markdown("### 🎨 Harita Altlığı")
-    map_theme = st.selectbox(
-        "Zemin Stili:",
+    # 1. Senaryo Seçimi
+    st.markdown("### 🎯 Çalışma Senaryosu")
+    scenario_mode = st.radio(
+        "Senaryo Türü:",
         [
-            "🌙 Dark Mode (Gece Komuta Modu)",
-            "📍 Canlı Sokak & Yol Haritası",
-            "🛰️ Gerçek Uydu Fotoğrafı (Satellite)"
+            "Senaryo B: Mevcut Kamu Ağı + Yeni Yatırımlar (Önerilen)",
+            "Senaryo A: Yalnızca Mevcut Kamu Ağı (Baz Durum, p=0)"
         ],
         index=0
     )
-    
+    is_scenario_b = ("Senaryo B" in scenario_mode)
+
     st.markdown("---")
-    st.markdown("### 👁️ Katman Aç / Kapat")
-    show_catchments = st.checkbox("🗺️ Bölgesel Hizmet Havzaları (Hinterlant)", value=True)
-    show_traffic = st.checkbox("🚦 Canlı Karayolu Trafik Akışı (Çift Katmanlı)", value=True)
-    show_transit_lines = st.checkbox("🚇 Metro, Ankaray ve Başkentray Hatları", value=True)
-    show_transit_stations = st.checkbox("⚪ Metro Ara İstasyon Noktaları", value=True)
-    show_transit_hubs = st.checkbox("🚌 AŞTİ, YHT Garı ve Ana EGO Durakları", value=True)
-    show_existing = st.checkbox("🏢 Mevcut Şehir Hastaneleri (Bilkent & Etlik)", value=True)
-    show_spider = st.checkbox("🕸️ Semt - Hastane Tahsis Hatları", value=True)
-    show_isochrone = st.checkbox("⭕ 10 & 15 Dk Acil Servis Çemberleri", value=True)
-    show_heatmap = st.checkbox("🔥 Nüfus Yoğunluğu Isı Haritası", value=False)
-    show_unselected = st.checkbox("⚪ Seçilmeyen Aday Konumlar", value=True)
+    st.markdown("### ⚙️ Optimizasyon Parametreleri")
+    
+    if is_scenario_b:
+        p_candidates = st.slider("Açılacak Yeni Aday Tesis Sayısı (p):", min_value=1, max_value=8, value=4, step=1)
+        travel_weight = st.slider("Ulaşım Süresi Önceliği (%):", min_value=0, max_value=100, value=70, step=5)
+        cost_weight = 100 - travel_weight
+    else:
+        p_candidates = 0
+        travel_weight = 100
+        cost_weight = 0
+        st.info("ℹ️ Senaryo A'da yeni tesis açılmaz (p=0). Yalnızca mevcut 20 kamu hastanesinin performansı ölçülür.")
 
-# ----------------- ÇÖZÜCÜYÜ ÇALIŞTIR -----------------
-results = solve_hospital_location(
-    p_hospitals=p_hospitals,
+    enable_capacity = st.checkbox("Kapasite Kısıtlarını Uygula (CFLP)", value=True)
+
+    st.markdown("---")
+    st.markdown("### 🚦 Simülasyon Saat ve Trafik Profili")
+    selected_hour = st.slider("Günün Saati (00:00 - 23:00):", min_value=0, max_value=23, value=18, step=1)
+    traffic_mult = get_traffic_multiplier(selected_hour)
+    
+    if traffic_mult >= 1.6:
+        st.markdown(f"🔴 **Yoğun Zirve Trafiği (+%{(traffic_mult-1)*100:.0f} Gecikme)**")
+    elif traffic_mult >= 1.2:
+        st.markdown(f"🟡 **Orta Düzey Trafik (+%{(traffic_mult-1)*100:.0f} Gecikme)**")
+    else:
+        st.markdown("🟢 **Akıcı Trafik (Normal Süre)**")
+
+    st.markdown("---")
+    st.markdown("### 👁️ Harita Katman Kontrolleri")
+    show_verified = st.checkbox("🏢 Doğrulanmış Mevcut Hastaneler (20 Tesis)", value=True)
+    show_candidates = st.checkbox("🏥 Yeni Yatırım Adayları (10 Tesis)", value=True)
+    show_demands = st.checkbox("👥 TÜİK Nüfus Talep Merkezleri (32 Bölge)", value=True)
+    show_assignment_lines = st.checkbox("🕸️ Hasta Tahsis Çizgileri", value=True)
+    show_legend = st.checkbox("🧭 Açık Harita Lejandı", value=True)
+
+# ----------------- OPTİMİZASYON SENARYOLARINI ÇALIŞTIR -----------------
+# 1. Aktif Seçilen Senaryo
+active_scenario = OptimizationScenario(
+    name="Aktif Senaryo",
+    description="Kullanıcı Parametreleriyle Çalıştırılan Senaryo",
+    p_candidates=p_candidates,
     weight_travel_time=travel_weight / 100.0,
-    weight_cost=cost_weight / 100.0,
-    enable_capacity=is_capacitated,
-    hour=selected_hour
+    weight_investment_cost=cost_weight / 100.0,
+    hour=selected_hour,
+    enable_capacity_limits=enable_capacity
 )
+results_active = solve_elastic_cflp(demand_zones, all_facilities, active_scenario)
 
-baseline_perf = calculate_baseline_existing_performance(hour=selected_hour)
+# 2. Baz Senaryo A (Mevcut Durum p=0, Karşılaştırma için arka planda hesaplanır)
+baseline_scenario = OptimizationScenario(
+    name="Mevcut Durum",
+    description="Sadece Doğrulanmış Mevcut Hastaneler (p=0)",
+    p_candidates=0,
+    weight_travel_time=1.0,
+    weight_investment_cost=0.0,
+    hour=selected_hour,
+    enable_capacity_limits=enable_capacity
+)
+results_baseline = solve_elastic_cflp(demand_zones, all_facilities, baseline_scenario)
+
+# Karşılaştırma Analitiği
+comparison_data = compare_scenarios(results_baseline, results_active)
 
 # ----------------- ÜST BAŞLIK VE KÜNYE -----------------
 st.markdown(f"""
 <div class="header-box">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-            <h1 class="main-title">ANKARA AKILLI SAĞLIK, TRAFİK & ULAŞIM GIS</h1>
-            <p class="subtitle">Saat <b>{selected_hour:02d}:00 Trafik Simülasyonu</b> | Metro, AŞTİ/Gar Durakları & Çok Amaçlı CFLP Optimizasyonu</p>
+            <h1 class="main-title">ANKARA SAĞLIKNET — KARAR DESTEK VE SİMÜLASYON SİSTEMİ</h1>
+            <p class="subtitle">Saat <b>{selected_hour:02d}:00 Simülasyonu</b> | Doğrulanmış Kamu Hastaneleri vs Aday Yatırımlar | Elastik CFLP Modeli</p>
         </div>
         <div>
-            <span class="badge badge-cflp">CFLP Modeli</span>
-            <span class="badge badge-transit">Metro & Otobüs Entegre</span>
-            <span class="badge badge-live">Canlı Trafik Motoru</span>
+            <span class="badge-verified">20 Doğrulanmış Hastane</span>
+            <span class="badge-simulation">10 Aday Lokasyon</span>
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-if not results["success"]:
-    st.error(f"❌ {results['message']}")
-    st.stop()
+# ----------------- AÇIKTA KALAN TALEP UYARISI -----------------
+if results_active.get("has_unmet_demand"):
+    st.markdown(f"""
+    <div class="alert-box">
+        <h4 style="margin:0; color:#f87171;">⚠️ KAPASİTE YETERSİZLİĞİ: TALEBİ KARŞILANAMAYAN NÜFUS TESPİT EDİLDİ!</h4>
+        <p style="margin:5px 0 0 0; font-size:0.9rem; color:#fca5a5;">
+            Toplam acil servis talebinin <b>%{results_active['unmet_percentage']:.2f}'si</b> ({results_active['unmet_demand_total']:,} başvuru/yıl) kapasite sınırları nedeniyle karşılanamamıştır.
+            Aşağıdaki <b>'Kapasite & Açıkta Kalan Talep'</b> sekmesinden etkilenen ilçeleri inceleyiniz.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ----------------- ÜST KPI METRİK KARTLARI -----------------
-k1, k2, k3, k4, k5 = st.columns(5)
-with k1:
+# ----------------- ÜST KPI KARTLARI -----------------
+c1, c2, c3, c4, c5 = st.columns(5)
+with c1:
     st.markdown(f"""
-        <div class="kpi-card" style="border-top-color:#38bdf8;">
-            <div class="kpi-label">Toplam Yatırım Maliyeti</div>
-            <div class="kpi-val">{results['total_cost_million_tl']:,.0f} <span style="font-size:0.9rem; color:#64748b;">M TL</span></div>
+        <div class="kpi-card" style="border-top-color:#3b82f6;">
+            <div class="kpi-label">Ort. Ulaşım Süresi</div>
+            <div class="kpi-val">{results_active['avg_travel_time_min']:.1f} <span style="font-size:0.9rem; color:#64748b;">dk</span></div>
         </div>
     """, unsafe_allow_html=True)
-with k2:
-    st.markdown(f"""
-        <div class="kpi-card" style="border-top-color:#f59e0b;">
-            <div class="kpi-label">Trafikte Ort. Seyahat</div>
-            <div class="kpi-val">{results['avg_travel_time_min']:.1f} <span style="font-size:0.9rem; color:#64748b;">dk</span></div>
-        </div>
-    """, unsafe_allow_html=True)
-with k3:
-    traffic_pct = (traffic_mult - 1.0) * 100.0
-    st.markdown(f"""
-        <div class="kpi-card" style="border-top-color:#ef4444;">
-            <div class="kpi-label">Trafik Gecikme Etkisi</div>
-            <div class="kpi-val" style="color:{'#ef4444' if traffic_pct>30 else '#10b981'};">+{traffic_pct:.0f}%</div>
-        </div>
-    """, unsafe_allow_html=True)
-with k4:
+
+with c2:
+    cov15 = results_active['coverage_under_15_min_pct']
     st.markdown(f"""
         <div class="kpi-card" style="border-top-color:#10b981;">
             <div class="kpi-label">15 Dk Kapsama Oranı</div>
-            <div class="kpi-val" style="color:{'#34d399' if results['coverage_under_15_min_pct']>50 else '#f59e0b'};">%{results['coverage_under_15_min_pct']:.1f}</div>
+            <div class="kpi-val" style="color:{'#34d399' if cov15>60 else '#f59e0b'};">%{cov15:.1f}</div>
         </div>
     """, unsafe_allow_html=True)
-with k5:
+
+with c3:
+    unmet_pct = results_active['unmet_percentage']
+    st.markdown(f"""
+        <div class="kpi-card" style="border-top-color:{'#ef4444' if unmet_pct>0 else '#10b981'};">
+            <div class="kpi-label">Açıkta Kalan Talep</div>
+            <div class="kpi-val" style="color:{'#ef4444' if unmet_pct>0 else '#10b981'};">%{unmet_pct:.1f}</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with c4:
+    cost_val = results_active['total_investment_cost_million_tl']
+    st.markdown(f"""
+        <div class="kpi-card" style="border-top-color:#8b5cf6;">
+            <div class="kpi-label">Toplam Yatırım Bütçesi</div>
+            <div class="kpi-val">{cost_val:,.0f} <span style="font-size:0.9rem; color:#64748b;">M TL</span></div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with c5:
+    max_t = results_active['max_travel_time_min']
     st.markdown(f"""
         <div class="kpi-card" style="border-top-color:#ec4899;">
-            <div class="kpi-label">Maks. Ulaşım (En Uzak)</div>
-            <div class="kpi-val" style="color:#fb7185;">{results['max_travel_time_min']:.1f} <span style="font-size:0.9rem; color:#64748b;">dk</span></div>
+            <div class="kpi-label">En Uzak İlçe Erişimi</div>
+            <div class="kpi-val" style="color:#fb7185;">{max_t:.1f} <span style="font-size:0.9rem; color:#64748b;">dk</span></div>
         </div>
     """, unsafe_allow_html=True)
 
 st.write("")
 
-# Renk Paleti (Canlı Tonlar)
-VIBRANT_HEX = ["#0284c7", "#e11d48", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#ea580c", "#4f46e5", "#0d9488"]
-hosp_color_map = {}
-for idx, hosp in enumerate(results["selected_hospitals"]):
-    hosp_color_map[hosp["id"]] = VIBRANT_HEX[idx % len(VIBRANT_HEX)]
-
 # ----------------- SEKMELER -----------------
-tab_map, tab_comparison, tab_transit, tab_analysis, tab_theory = st.tabs([
-    "🗺️ AKILLI SAĞLIK GIS & CANLI TRAFİK HARİTASI",
-    "⚖️ MEVCUT DURUM VS OPTİMİZE MODEL (KIYASLAMA)",
-    "🚇 METRO, AŞTİ VE EGO AKTARMA ANALİZİ",
-    "📊 HASTANE DOLULUK VE MALİYET GRAFİKLERİ",
-    "📝 MATEMATİKSEL TEORİ (CFLP & DİNAMİK MODEL)"
+tab_map, tab_comparison, tab_data, tab_capacity, tab_theory = st.tabs([
+    "🗺️ TAKTİKSEL GIS HARİTASI",
+    "⚖️ MEVCUT DURUM VS YENİ YATIRIMLAR (KIYASLAMA)",
+    "📋 VERİ ŞEFFAFLIĞI VE PROVENANCE",
+    "🚨 KAPASİTE VE AÇIKTA KALAN TALEP DENETİMİ",
+    "📝 MATEMATİKSEL MODEL SPESİFİKASYONU"
 ])
 
 # ===================== SEKME 1: HARİTA GÖRÜNÜMÜ =====================
 with tab_map:
-    # 🚑 İNTERAKTİF ACİL AMBULANS SEVK SİMÜLATÖRÜ
-    with st.expander("🚑 **Canlı Ambulans Sevk Simülatörü (Acil Çağrı Deneyimi)**", expanded=True):
-        col_disp1, col_disp2 = st.columns([1, 2])
-        demand_names = [f"{d['id']} - {d['name']} ({d['district']})" for d in DEMAND_POINTS]
-        default_sincan_idx = next((i for i, d in enumerate(demand_names) if "Sincan" in d), 0)
-        with col_disp1:
-            selected_dem_str = st.selectbox(
-                "Acil Çağrı Gelen Semt / Bölge Seçin:",
-                demand_names,
-                index=default_sincan_idx
-            )
-            selected_dem_id = selected_dem_str.split(" - ")[0]
-            
-        matched_assign = next(a for a in results["assignments"] if a["demand_id"] == selected_dem_id)
-        
-        # Mevcut 2 şehir hastanesine gitseydi ne kadar sürerdi?
-        t1_base, d1_base = calculate_travel_time_minutes(
-            matched_assign["demand_lat"], matched_assign["demand_lon"],
-            EXISTING_HOSPITALS[0]["lat"], EXISTING_HOSPITALS[0]["lon"],
-            hour=selected_hour
-        )
-        t2_base, d2_base = calculate_travel_time_minutes(
-            matched_assign["demand_lat"], matched_assign["demand_lon"],
-            EXISTING_HOSPITALS[1]["lat"], EXISTING_HOSPITALS[1]["lon"],
-            hour=selected_hour
-        )
-        best_existing_time = min(t1_base, t2_base)
-        best_existing_name = EXISTING_HOSPITALS[0]["name"] if t1_base <= t2_base else EXISTING_HOSPITALS[1]["name"]
-        time_saved = best_existing_time - matched_assign['travel_time_min']
-        
-        with col_disp2:
-            st.markdown(f"""
-                <div class="dispatch-box">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="font-size:1.05rem; font-weight:800; color:#38bdf8;">
-                            🚨 112 ACİL SEVK PROTOKOLÜ: <span style="color:#ffffff;">{matched_assign['demand_name']} ➡️ {matched_assign['hospital_name']}</span>
-                        </div>
-                        <span style="background:#ef4444; color:white; font-size:0.75rem; font-weight:bold; padding:3px 10px; border-radius:6px; box-shadow:0 0 10px #ef4444;">KOD KIRMIZI</span>
-                    </div>
-                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:10px; font-size:0.88rem; background:rgba(0,0,0,0.35); padding:10px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-                        <div>⏱️ <b>Optimize Süre:</b> <br/><span style="color:#10b981; font-size:1.25rem; font-weight:bold;">{matched_assign['travel_time_min']} dk</span></div>
-                        <div>🏢 <b>Mevcut Durum:</b> <br/><span style="color:#ef4444; font-size:1.25rem; font-weight:bold;">{best_existing_time:.1f} dk</span></div>
-                        <div>⚡ <b>Kazanılan Süre:</b> <br/><span style="color:#38bdf8; font-size:1.25rem; font-weight:bold;">{'+' if time_saved>0 else ''}{time_saved:.1f} dk</span></div>
-                        <div>🛣️ <b>Yol Mesafesi:</b> <br/><span style="color:#f8fafc; font-size:1.25rem; font-weight:bold;">{matched_assign['distance_km']} km</span></div>
-                    </div>
-                    <div style="margin-top:8px; font-size:0.8rem; color:#94a3b8;">
-                        ℹ️ <i>Eğer yeni optimize hastaneler açılmasaydı, bu vaka mecburen <b>{best_existing_name.split(' (')[0]}</b>'ne sevk edilecek ve <b>{best_existing_time:.1f} dakika</b> sürecekti.</i>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-    # Folium Haritası Başlat
+    # Folium Haritası
     m = folium.Map(
-        location=[39.92, 32.75],
+        location=[39.93, 32.78],
         zoom_start=10,
         tiles=None
     )
     
-    # Harita Altlığı
-    if "Karanlık" in map_theme or "Dark" in map_theme:
-        folium.TileLayer(
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-            attr="Esri Dark Gray",
-            name="Dark Canvas",
-            overlay=False
-        ).add_to(m)
-        folium.TileLayer(
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
-            attr="Labels",
-            name="Etiketler",
-            overlay=True
-        ).add_to(m)
-    elif "Uydu" in map_theme:
-        folium.TileLayer(
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            attr="Esri World Imagery",
-            name="Gerçek Uydu Fotoğrafı",
-            overlay=False
-        ).add_to(m)
-    else:
-        folium.TileLayer(
-            tiles="OpenStreetMap",
-            name="Canlı Sokak & Yol Haritası",
-            overlay=False
-        ).add_to(m)
-
-    # Taktiksel Harita Eklentileri (Fullscreen, MiniMap, MeasureControl)
-    plugins.Fullscreen(
-        position='topleft',
-        title='Tam Ekran Görünümü (Akıllı Tahta / Projeksiyon)',
-        title_cancel='Tam Ekrandan Çık',
-        force_separate_button=True
+    # Esri Dark Gray Altlık (Sıfır filigran, profesyonel GIS)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri Dark Gray",
+        name="Karanlık Komuta Modu",
+        overlay=False
     ).add_to(m)
-    
-    plugins.MiniMap(
-        tile_layer="OpenStreetMap",
-        position='bottomleft',
-        width=150,
-        height=110,
-        toggle_display=True
-    ).add_to(m)
-    
-    plugins.MeasureControl(
-        position='bottomleft',
-        primary_length_unit='kilometers',
-        secondary_length_unit='meters'
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        attr="Labels",
+        name="Etiketler",
+        overlay=True
     ).add_to(m)
 
-    # Leaflet Özel Radar Dalgaları ve Siren Animasyonu CSS Enjeksiyonu
-    leaflet_custom_css = """
+    # Taktiksel Araçlar
+    plugins.Fullscreen(position='topleft', title='Tam Ekran').add_to(m)
+    plugins.MiniMap(position='bottomleft', width=140, height=100, toggle_display=True).add_to(m)
+    plugins.MeasureControl(position='bottomleft', primary_length_unit='kilometers').add_to(m)
+
+    # Leaflet Özel CSS (Pulsing ve rozetler)
+    leaflet_css = """
     <style>
-    @keyframes pulseGlow {
-        0% {
-            box-shadow: 0 0 0 0 rgba(var(--rgb), 0.85), 0 0 12px rgba(var(--rgb), 0.6);
-            transform: scale(0.96);
-        }
-        70% {
-            box-shadow: 0 0 0 20px rgba(var(--rgb), 0), 0 0 25px rgba(var(--rgb), 0.8);
-            transform: scale(1.06);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(var(--rgb), 0), 0 0 12px rgba(var(--rgb), 0.6);
-            transform: scale(0.96);
-        }
+    @keyframes pulseAday {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8); transform: scale(0.96); }
+        70% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); transform: scale(1.05); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); transform: scale(0.96); }
     }
-    .pulse-hospital {
+    .pulse-candidate {
         border-radius: 50%;
-        animation: pulseGlow 2.2s infinite ease-out;
+        animation: pulseAday 2.0s infinite ease-out;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        border: 2px solid #ffffff;
+        background: #059669;
+        font-size: 17px;
+        color: white;
     }
-    @keyframes sirenFlash {
-        0%, 100% { 
-            background: #ef4444; 
-            box-shadow: 0 0 18px #ef4444, 0 0 35px rgba(239, 68, 68, 0.7); 
-        }
-        50% { 
-            background: #3b82f6; 
-            box-shadow: 0 0 18px #3b82f6, 0 0 35px rgba(59, 130, 246, 0.7); 
-        }
-    }
-    .ambulance-beacon {
+    .existing-icon {
         border-radius: 50%;
-        animation: sirenFlash 0.9s infinite alternate;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 3px solid #ffffff;
+        border: 2px solid #93c5fd;
+        background: #1e40af;
+        font-size: 15px;
+        color: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
     </style>
     """
-    m.get_root().html.add_child(folium.Element(leaflet_custom_css))
+    m.get_root().html.add_child(folium.Element(leaflet_css))
 
-    # 1. NÜFUS YOĞUNLUĞU ISI HARİTASI (HEATMAP)
-    if show_heatmap:
-        heat_data = [[d["lat"], d["lon"], float(d["population"]) / 1000.0] for d in DEMAND_POINTS]
-        plugins.HeatMap(
-            heat_data,
-            name="🔥 Nüfus Yoğunluğu Isı Haritası",
-            min_opacity=0.35,
-            max_zoom=14,
-            radius=30,
-            blur=20,
-            gradient={0.2: '#06b6d4', 0.4: '#10b981', 0.6: '#f59e0b', 0.8: '#f97316', 1.0: '#ef4444'}
-        ).add_to(m)
+    # 1. Doğrulanmış Mevcut Hastaneler Katmanı
+    if show_verified:
+        verified_fg = folium.FeatureGroup(name="🏢 Doğrulanmış Mevcut Hastaneler", show=True)
+        for h in verified_hospitals:
+            icon_html = '<div class="existing-icon" style="width:32px; height:32px;">🏢</div>'
+            popup_html = f"""
+            <div style='font-family:sans-serif; min-width:260px; color:#1e293b;'>
+                <div style='background:#1e40af; color:white; padding:6px 10px; border-radius:6px 6px 0 0;'>
+                    <span style='background:#065f46; color:#a7f3d0; font-size:9px; padding:2px 5px; border-radius:3px;'>DOĞRULANMIŞ GERÇEK VERİ</span><br/>
+                    <b style='font-size:1.0rem;'>{h.name}</b>
+                </div>
+                <div style='padding:8px;'>
+                    <b>Tür:</b> {h.facility_type.value}<br/>
+                    <b>İlçe:</b> {h.district}<br/>
+                    <b>Tescilli Yatak:</b> {h.bed_capacity:,}<br/>
+                    <b>Acil Kabul Kapasitesi:</b> ~{h.annual_emergency_capacity:,} başvuru/yıl<br/>
+                    <hr style='margin:6px 0;'/>
+                    <span style='font-size:0.75rem; color:#64748b;'><b>Kaynak:</b> {h.source}</span>
+                </div>
+            </div>
+            """
+            folium.Marker(
+                location=[h.lat, h.lon],
+                icon=folium.DivIcon(html=icon_html, icon_size=(32, 32), icon_anchor=(16, 16)),
+                tooltip=f"🏢 {h.name} ({h.bed_capacity} Yatak)",
+                popup=folium.Popup(popup_html, max_width=320)
+            ).add_to(verified_fg)
+        verified_fg.add_to(m)
 
-    # 2. BÖLGESEL HİZMET HAVZALARI (CONVEX HULL HINTERLAND POLİGONLARI)
-    if show_catchments:
-        catchment_fg = folium.FeatureGroup(name="🗺️ Bölgesel Hizmet Havzaları (Hinterlant)", show=True)
-        hosp_demands = {}
-        for ass in results["assignments"]:
-            h_id = ass["hospital_id"]
-            if h_id not in hosp_demands:
-                hosp_demands[h_id] = []
-            hosp_demands[h_id].append([ass["demand_lat"], ass["demand_lon"]])
-            
-        for hosp in results["selected_hospitals"]:
-            h_id = hosp["id"]
-            h_color = hosp_color_map[h_id]
-            pts = hosp_demands.get(h_id, [])
-            all_pts = pts + [[hosp["lat"], hosp["lon"]]]
-            if len(all_pts) >= 3:
-                try:
-                    hull = ConvexHull(np.array(all_pts))
-                    hull_coords = [all_pts[v] for v in hull.vertices]
-                    folium.Polygon(
-                        locations=hull_coords,
-                        color=h_color,
-                        weight=2,
-                        fill=True,
-                        fill_color=h_color,
-                        fill_opacity=0.09,
-                        dash_array="5, 5",
-                        tooltip=f"🏥 <b>{hosp['name']} Hizmet Havzası</b><br/>Bağlanan Nüfus: {hosp['allocated_population']:,}"
-                    ).add_to(catchment_fg)
-                except Exception:
-                    pass
-        catchment_fg.add_to(m)
-
-    # 3. CANLI KARAYOLU TRAFİK AKIŞI (ÇİFT KATMANLI HD TRAFİK PARLAMASI)
-    if show_traffic:
-        traffic_fg = folium.FeatureGroup(name="🚦 Canlı Trafik Yoğunluğu (Saat Bazlı)", show=True)
-        ref_h = 18 if 16 <= selected_hour <= 20 else (8 if 7 <= selected_hour <= 10 else (2 if selected_hour <= 5 else 13))
+    # 2. Yeni Yatırım Adayları Katmanı
+    if show_candidates:
+        cand_fg = folium.FeatureGroup(name="🏥 Yeni Yatırım Adayları", show=True)
+        selected_ids = set(results_active.get("selected_candidate_ids", []))
         
-        for artery in ROAD_ARTERIES:
-            t_info = artery["traffic_profile"].get(ref_h, artery["traffic_profile"][13])
-            color = t_info["color"]
-            glow = t_info["glow"]
-            speed = t_info["speed"]
-            status = t_info["status"]
-            
-            # Dış Katman (Glow Efekti)
-            folium.PolyLine(
-                locations=artery["coords"],
-                color=glow,
-                weight=8,
-                opacity=0.5
-            ).add_to(traffic_fg)
-            
-            # İç Katman (Canlı Çekirdek Renk)
-            folium.PolyLine(
-                locations=artery["coords"],
-                color=color,
-                weight=4.5,
-                opacity=0.95,
-                tooltip=f"🚦 <b>{artery['name']}</b><br/>Durum: <b>{status}</b><br/>Ortalama Hız: <b>{speed} km/s</b>"
-            ).add_to(traffic_fg)
-        traffic_fg.add_to(m)
+        for cand in candidate_hospitals:
+            is_selected = cand.id in selected_ids
+            if is_selected:
+                icon_html = '<div class="pulse-candidate" style="width:36px; height:36px;">🏥</div>'
+                badge_txt = "AÇILMASI ÖNERİLEN YATIRIM"
+                badge_bg = "#059669"
+            else:
+                icon_html = '<div style="background:#475569; border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:13px; border:1px solid #cbd5e1;">⚪</div>'
+                badge_txt = "SEÇİLMEYEN ADAY LOKASYON"
+                badge_bg = "#475569"
 
-    # 4. METRO VE RAYLI SİSTEMLER
-    if show_transit_lines:
-        transit_fg = folium.FeatureGroup(name="🚇 Ankara Raylı Sistem Hatları", show=True)
-        for line in TRANSIT_LINES:
-            folium.PolyLine(
-                locations=line["coords"],
-                color=line["color"],
-                weight=line["weight"],
-                opacity=0.95,
-                tooltip=f"{line['name']} ({line['type']})"
-            ).add_to(transit_fg)
-        transit_fg.add_to(m)
+            popup_html = f"""
+            <div style='font-family:sans-serif; min-width:260px; color:#1e293b;'>
+                <div style='background:{badge_bg}; color:white; padding:6px 10px; border-radius:6px 6px 0 0;'>
+                    <span style='background:#854d0e; color:#fef08a; font-size:9px; padding:2px 5px; border-radius:3px;'>SİMÜLASYON VARSAYIMI</span><br/>
+                    <b style='font-size:1.0rem;'>{cand.name}</b>
+                </div>
+                <div style='padding:8px;'>
+                    <b>Statü:</b> {badge_txt}<br/>
+                    <b>İlçe:</b> {cand.district}<br/>
+                    <b>Yatırım Maliyeti:</b> {cand.investment_cost_million_tl:.1f} Milyon TL<br/>
+                    <b>Hedef Yatak:</b> {cand.bed_capacity} Yatak<br/>
+                    <b>Acil Kapasite Kotası:</b> ~{cand.annual_emergency_capacity:,} kişi/yıl<br/>
+                    <hr style='margin:6px 0;'/>
+                    <span style='font-size:0.75rem; color:#64748b;'><b>Dayanak:</b> {cand.source}</span>
+                </div>
+            </div>
+            """
+            folium.Marker(
+                location=[cand.lat, cand.lon],
+                icon=folium.DivIcon(html=icon_html, icon_size=(36, 36), icon_anchor=(18, 18)),
+                tooltip=f"{'🏥 [SEÇİLDİ]' if is_selected else '⚪ [AÇILMADI]'} {cand.name}",
+                popup=folium.Popup(popup_html, max_width=320)
+            ).add_to(cand_fg)
+        cand_fg.add_to(m)
 
-    # 5. METRO ARA İSTASYONLARI
-    if show_transit_stations:
-        stations_fg = folium.FeatureGroup(name="⚪ Metro Ara İstasyonları", show=True)
-        for stn in METRO_STATIONS:
+    # 3. Talep Merkezleri Katmanı
+    if show_demands:
+        dem_fg = folium.FeatureGroup(name="👥 TÜİK Talep Merkezleri", show=True)
+        for d in demand_zones:
+            rad = 4 + (d.population / 60000)
             folium.CircleMarker(
-                location=[stn["lat"], stn["lon"]],
-                radius=4,
+                location=[d.lat, d.lon],
+                radius=rad,
                 color="#ffffff",
                 weight=1.5,
                 fill=True,
-                fill_color="#6366f1",
-                fill_opacity=0.9,
-                tooltip=f"🚇 {stn['name']}"
-            ).add_to(stations_fg)
-        stations_fg.add_to(m)
-
-    # 6. AKTARMA MERKEZLERİ & DURAKLAR
-    if show_transit_hubs:
-        hubs_fg = folium.FeatureGroup(name="🚌 AŞTİ, YHT Garı ve Ana EGO Durakları", show=True)
-        for hub in TRANSIT_HUBS:
-            folium.Marker(
-                location=[hub["lat"], hub["lon"]],
-                icon=folium.Icon(color="blue", icon="bus", prefix="fa"),
-                tooltip=f"🚏 {hub['name']} ({hub['daily_passengers']:,} yolcu/gün)",
+                fill_color="#38bdf8",
+                fill_opacity=0.85,
+                tooltip=f"📍 {d.name} ({d.population:,} Nüfus)",
                 popup=folium.Popup(f"""
                     <div style='font-family:sans-serif; min-width:220px;'>
-                        <h4 style='margin:0; color:#1d4ed8;'>🚏 {hub['name']}</h4>
-                        <b>Tür:</b> {hub['type']}<br/>
-                        <b>Günlük Yolcu Hacmi:</b> ~{hub['daily_passengers']:,} kişi<br/>
-                        <hr style='margin:6px 0;'/>
-                        <span style='font-size:0.85rem; color:#475569;'>{hub['desc']}</span>
+                        <span style='background:#0284c7; color:white; font-size:9px; padding:2px 5px; border-radius:3px;'>TÜİK 2023 ADNKS</span><br/>
+                        <b>{d.name}</b> ({d.district})<br/>
+                        <b>Nüfus:</b> {d.population:,} kişi<br/>
+                        <b>Yıllık Acil Talep:</b> ~{d.annual_emergency_demand:,} başvuru/yıl
                     </div>
-                """, max_width=280)
-            ).add_to(hubs_fg)
-        hubs_fg.add_to(m)
+                """, max_width=260)
+            ).add_to(dem_fg)
+        dem_fg.add_to(m)
 
-    # 7. MEVCUT ŞEHİR HASTANELERİ (BİLKENT & ETLİK)
-    if show_existing:
-        exist_fg = folium.FeatureGroup(name="🏢 Mevcut Şehir Hastaneleri (Bilkent & Etlik)", show=True)
-        for exh in EXISTING_HOSPITALS:
-            ex_icon_html = """
-            <div style="
-                background: #334155;
-                border: 3px solid #f8fafc;
-                border-radius: 50%;
-                width: 36px;
-                height: 36px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                color: white;
-                box-shadow: 0 0 14px rgba(0,0,0,0.5);
-            ">🏢</div>
-            """
-            folium.Marker(
-                location=[exh["lat"], exh["lon"]],
-                icon=folium.DivIcon(html=ex_icon_html, icon_size=(36, 36), icon_anchor=(18, 18)),
-                tooltip=f"🏢 {exh['name']} ({exh['beds']:,} Yatak)",
-                popup=folium.Popup(f"""
-                    <div style='font-family:sans-serif;'>
-                        <h4>🏢 {exh['name']}</h4>
-                        <b>İlçe:</b> {exh['district']}<br/>
-                        <b>Yatak Sayısı:</b> {exh['beds']:,}<br/>
-                        <b>Kapasite:</b> {exh['capacity']:,} kişi<br/>
-                        <p style='font-size:0.85rem; color:#64748b;'>{exh['desc']}</p>
-                    </div>
-                """, max_width=280)
-            ).add_to(exist_fg)
-        exist_fg.add_to(m)
+    # 4. Tahsis Hatları
+    if show_assignment_lines:
+        assign_fg = folium.FeatureGroup(name="🕸️ Hasta Sevk Hatları", show=True)
+        for a in results_active.get("assignments", []):
+            color = "#10b981" if not a["is_existing"] else "#3b82f6"
+            folium.PolyLine(
+                locations=[[a["demand_lat"], a["demand_lon"]], [a["facility_lat"], a["facility_lon"]]],
+                color=color,
+                weight=1.8,
+                opacity=0.55,
+                dash_array="4, 4" if a["is_existing"] else None,
+                tooltip=f"{a['demand_name']} ➡️ {a['facility_name']} ({a['travel_time_min']} dk)"
+            ).add_to(assign_fg)
+        assign_fg.add_to(m)
 
-    # 8. HASTA ULAŞIM HATLARI & CANLI AMBULANS SEVK ROTASI (AntPath)
-    if show_spider:
-        spider_fg = folium.FeatureGroup(name="🕸️ Hasta Akış Güzergahları", show=True)
-        for ass in results["assignments"]:
-            h_color = hosp_color_map[ass["hospital_id"]]
-            is_active_sim = (ass["demand_id"] == selected_dem_id)
-            
-            if is_active_sim:
-                # Canlı Hareket Eden Neon AntPath
-                plugins.AntPath(
-                    locations=[
-                        [ass["demand_lat"], ass["demand_lon"]],
-                        [ass["hospital_lat"], ass["hospital_lon"]]
-                    ],
-                    color="#00ffff",
-                    pulse_color="#ffffff",
-                    weight=5.5,
-                    opacity=1.0,
-                    delay=500,
-                    dash_array=[12, 20],
-                    tooltip=f"🚨 <b>CANLI AMBULANS SEVK ROTASI:</b> {ass['travel_time_min']} dk ({ass['distance_km']} km)"
-                ).add_to(spider_fg)
-            else:
-                folium.PolyLine(
-                    locations=[
-                        [ass["demand_lat"], ass["demand_lon"]],
-                        [ass["hospital_lat"], ass["hospital_lon"]]
-                    ],
-                    color=h_color,
-                    weight=1.6,
-                    opacity=0.55,
-                    dash_array="5, 5",
-                    tooltip=f"{ass['demand_name']} ➡️ {ass['hospital_name']} ({ass['travel_time_min']} dk)"
-                ).add_to(spider_fg)
-        spider_fg.add_to(m)
-
-    # 9. ERİŞİM ÇEMBERLERİ (DİNAMİK İZO-KRONLAR)
-    if show_isochrone:
-        iso_fg = folium.FeatureGroup(name="⭕ 10 & 15 Dk Erişim Çemberleri", show=True)
-        eff_radius_10min = int(8000 / traffic_mult)
-        eff_radius_15min = int(14000 / traffic_mult)
-        
-        for hosp in results["selected_hospitals"]:
-            h_color = hosp_color_map[hosp["id"]]
-            
-            folium.Circle(
-                location=[hosp["lat"], hosp["lon"]],
-                radius=eff_radius_10min,
-                color=h_color,
-                weight=1.5,
-                fill=True,
-                fill_color=h_color,
-                fill_opacity=0.12,
-                tooltip=f"{hosp['name']} - 10 Dk Acil Servis Alanı ({eff_radius_10min/1000:.1f} km)"
-            ).add_to(iso_fg)
-            
-            folium.Circle(
-                location=[hosp["lat"], hosp["lon"]],
-                radius=eff_radius_15min,
-                color=h_color,
-                weight=1.0,
-                dash_array="6, 6",
-                fill=False,
-                tooltip=f"{hosp['name']} - 15 Dk Genişletilmiş Alan ({eff_radius_15min/1000:.1f} km)"
-            ).add_to(iso_fg)
-        iso_fg.add_to(m)
-
-    # 10. SEÇİLMEYEN ADAY KONUMLAR
-    if show_unselected:
-        selected_ids = {h["id"] for h in results["selected_hospitals"]}
-        unselected_fg = folium.FeatureGroup(name="⚪ Seçilmeyen Aday Konumlar", show=True)
-        for cand in CANDIDATE_SITES:
-            if cand["id"] not in selected_ids:
-                folium.CircleMarker(
-                    location=[cand["lat"], cand["lon"]],
-                    radius=5.5,
-                    color="#64748b",
-                    weight=1,
-                    fill=True,
-                    fill_color="#334155",
-                    fill_opacity=0.7,
-                    tooltip=f"❌ {cand['name']} (Açılmadı - {cand['cost_million_tl']}M TL)"
-                ).add_to(unselected_fg)
-        unselected_fg.add_to(m)
-
-    # 11. TALEP MERKEZLERİ
-    demands_fg = folium.FeatureGroup(name="👥 Semt Nüfus Noktaları", show=True)
-    for ass in results["assignments"]:
-        h_color = hosp_color_map[ass["hospital_id"]]
-        is_active_sim = (ass["demand_id"] == selected_dem_id)
-        
-        if is_active_sim:
-            amb_html = """
-            <div class="ambulance-beacon" style="
-                width: 38px;
-                height: 38px;
-                font-size: 19px;
-                position: relative;
-            ">
-                🚑
-                <span style="
-                    position: absolute;
-                    bottom: -16px;
-                    background: #dc2626;
-                    color: white;
-                    border: 1px solid #fca5a5;
-                    border-radius: 4px;
-                    font-size: 8px;
-                    font-weight: 800;
-                    padding: 0px 4px;
-                    white-space: nowrap;
-                ">ACİL ÇAĞRI</span>
-            </div>
-            """
-            folium.Marker(
-                location=[ass["demand_lat"], ass["demand_lon"]],
-                icon=folium.DivIcon(html=amb_html, icon_size=(38, 38), icon_anchor=(19, 19)),
-                tooltip=f"🚨 ACİL ÇAĞRI: {ass['demand_name']} ➡️ {ass['travel_time_min']} dk"
-            ).add_to(demands_fg)
-        else:
-            pop_radius = 5 + (ass["population"] / 60000)
-            folium.CircleMarker(
-                location=[ass["demand_lat"], ass["demand_lon"]],
-                radius=pop_radius,
-                color="#ffffff",
-                weight=1.5,
-                fill=True,
-                fill_color=h_color,
-                fill_opacity=0.92,
-                tooltip=f"📍 {ass['demand_name']} ({ass['population']:,} kişi) ➡️ {ass['travel_time_min']} dk",
-                popup=folium.Popup(f"""
-                    <div style='font-family:sans-serif;'>
-                        <b>{ass['demand_name']}</b> ({ass['district']})<br/>
-                        <b>Nüfus:</b> {ass['population']:,}<br/>
-                        <b>Atanan:</b> {ass['hospital_name']}<br/>
-                        <b>Trafikli Süre:</b> <span style='color:#ef4444; font-weight:bold;'>{ass['travel_time_min']} dk</span><br/>
-                        <b>Mesafe:</b> {ass['distance_km']} km
-                    </div>
-                """, max_width=250)
-            ).add_to(demands_fg)
-    demands_fg.add_to(m)
-
-    # 12. SEÇİLEN HASTANELER (RADAR DALGALI GLOW İKONLARI)
-    hosp_fg = folium.FeatureGroup(name="🏥 Açılan Optimal Hastaneler", show=True)
-    for idx, hosp in enumerate(results["selected_hospitals"]):
-        h_color = hosp_color_map[hosp["id"]]
-        rgb_str = hex_to_rgb_str(h_color)
-        
-        html_marker = f"""
-        <div class="pulse-hospital" style="
-            --rgb: {rgb_str};
-            background: {h_color};
-            border: 3px solid #ffffff;
-            width: 38px;
-            height: 38px;
-            font-size: 19px;
-            color: white;
-            cursor: pointer;
-            position: relative;
-        ">
-            🏥
-            <span style="
-                position: absolute;
-                bottom: -15px;
-                background: rgba(15, 23, 42, 0.95);
-                color: #38bdf8;
-                border: 1px solid #38bdf8;
-                border-radius: 4px;
-                font-size: 8px;
-                font-weight: 800;
-                padding: 0px 4px;
-                white-space: nowrap;
-                letter-spacing: 0.5px;
-            ">AÇIK #{idx+1}</span>
+    # 5. Açık Harita Lejandı
+    if show_legend:
+        legend_html = """
+        <div style="position:fixed; bottom:25px; right:25px; z-index:1000; background:rgba(15, 23, 42, 0.95); border:1px solid #334155; border-radius:8px; padding:12px; font-size:12px; color:#f8fafc; font-family:sans-serif; min-width:240px; box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+            <div style="font-weight:bold; color:#60a5fa; margin-bottom:6px; border-bottom:1px solid #334155; padding-bottom:4px;">ANKARA SAĞLIKNET LEJANDI</div>
+            <div style="margin-bottom:4px;"><span style="color:#60a5fa;">🏢</span> <b>Doğrulanmış Mevcut Hastane</b> (20 Tesis)</div>
+            <div style="margin-bottom:4px;"><span style="color:#10b981;">🏥</span> <b>Seçilen Yeni Yatırım</b> (CFLP Optimum)</div>
+            <div style="margin-bottom:4px;"><span style="color:#94a3b8;">⚪</span> <b>Açılmayan Aday Lokasyon</b></div>
+            <div style="margin-bottom:4px;"><span style="color:#38bdf8;">📍</span> <b>TÜİK Talep Bölgesi</b> (Nüfus Odağı)</div>
+            <div style="margin-bottom:4px;"><span style="display:inline-block; width:14px; height:3px; background:#10b981; margin-right:4px;"></span> Yeni Tesise Tahsis Hattı</div>
+            <div><span style="display:inline-block; width:14px; height:3px; background:#3b82f6; margin-right:4px;"></span> Mevcut Hastaneye Tahsis Hattı</div>
         </div>
         """
-        icon = folium.DivIcon(html=html_marker, icon_size=(38, 38), icon_anchor=(19, 19))
-        
-        popup_html = f"""
-        <div style='font-family:system-ui, -apple-system, sans-serif; min-width:260px; color:#1e293b;'>
-            <div style='background:{h_color}; color:white; padding:8px 12px; border-radius:8px 8px 0 0; margin:-1px -1px 8px -1px;'>
-                <div style='font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.9;'>Optimal Sağlık Kampüsü</div>
-                <b style='font-size:1.1rem;'>🏥 {hosp['name']}</b>
-            </div>
-            <div style='padding:0 4px;'>
-                <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                    <span style='color:#64748b;'>İlçe / Bölge:</span>
-                    <b>{hosp['district']}</b>
-                </div>
-                <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                    <span style='color:#64748b;'>Yatırım Maliyeti:</span>
-                    <b style='color:#0284c7;'>{hosp['cost_million_tl']} Milyon TL</b>
-                </div>
-                <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                    <span style='color:#64748b;'>Yatak Kapasitesi:</span>
-                    <b>{hosp['capacity']:,} kişi</b>
-                </div>
-                <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                    <span style='color:#64748b;'>Yoğun Bakım & Filo:</span>
-                    <b>{hosp.get('icu_beds', 120)} Yatak | {hosp.get('ambulances', 12)} Araç</b>
-                </div>
-                <hr style='border:none; border-top:1px solid #e2e8f0; margin:6px 0;'/>
-                <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                    <span style='color:#64748b;'>Hizmet Verilen Nüfus:</span>
-                    <b>{hosp['allocated_population']:,} kişi</b>
-                </div>
-                <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <span style='color:#64748b;'>Kapasite Doluluk:</span>
-                    <span style='background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:700; color:{'#10b981' if hosp['utilization_pct']<=90 else '#f59e0b'};'>
-                        %{hosp['utilization_pct']}
-                    </span>
-                </div>
-            </div>
-        </div>
-        """
-        
-        folium.Marker(
-            location=[hosp["lat"], hosp["lon"]],
-            icon=icon,
-            tooltip=f"🏥 {hosp['name']} (%{hosp['utilization_pct']} Dolu)",
-            popup=folium.Popup(popup_html, max_width=320)
-        ).add_to(hosp_fg)
-    hosp_fg.add_to(m)
+        m.get_root().html.add_child(folium.Element(legend_html))
 
-    # 13. HARİTA ÜZERİNDE SABİT GLASSMORPHISM LEJANT
-    legend_html = f"""
-    <div style="
-        position: fixed;
-        bottom: 25px;
-        right: 25px;
-        z-index: 1000;
-        background: rgba(15, 23, 42, 0.92);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(255,255,255,0.18);
-        border-radius: 10px;
-        padding: 12px 16px;
-        color: #f8fafc;
-        font-family: sans-serif;
-        font-size: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-        max-width: 250px;
-    ">
-        <div style="font-weight:bold; font-size:13px; color:#38bdf8; margin-bottom:8px; border-bottom:1px solid #334155; padding-bottom:4px;">
-            🧭 ANKARA SAĞLIK GIS LEJANDI
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="display:inline-block; width:12px; height:12px; background:#ef4444; border-radius:50%; margin-right:8px;"></span>
-            Ağır Zirve Trafiği (15-25 km/s)
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="display:inline-block; width:12px; height:12px; background:#f59e0b; border-radius:50%; margin-right:8px;"></span>
-            Orta Seviye Trafik (40-50 km/s)
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="display:inline-block; width:12px; height:12px; background:#10b981; border-radius:50%; margin-right:8px;"></span>
-            Akıcı Trafik (65-85 km/s)
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="margin-right:6px;">🏥</span> Optimal Açılan Hastaneler
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="margin-right:6px;">🏢</span> Mevcut Şehir Hastaneleri
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="margin-right:6px;">🚇</span> Ankara Metro & Banliyö Hatları
-        </div>
-        <div style="display:flex; align-items:center; margin-bottom:4px;">
-            <span style="margin-right:6px;">🚌</span> AŞTİ, Gar & EGO Aktarma
-        </div>
-        <div style="display:flex; align-items:center;">
-            <span style="margin-right:6px;">⭕</span> 10 ve 15 Dk Erişim Çemberleri
-        </div>
-    </div>
-    """
-    m.get_root().html.add_child(folium.Element(legend_html))
+    st_folium(m, width="100%", height=720)
 
-    # Haritayı Render Et
-    st_folium(m, width="100%", height=760)
-
-# ===================== SEKME 2: MEVCUT DURUM VS OPTİMİZE MODEL =====================
+# ===================== SEKME 2: KARŞILAŞTIRMA =====================
 with tab_comparison:
-    st.markdown("### ⚖️ Mevcut Durum (Sadece 2 Şehir Hastanesi) vs Önerilen Çok Merkezli Model")
-    st.caption("Bilkent ve Etlik Şehir Hastanelerine mahkûm kalındığında yaşanan gecikmeler ile yeni dağıtık modelin farkı:")
-    
-    col_cmp1, col_cmp2, col_cmp3 = st.columns(3)
-    
-    with col_cmp1:
-        time_diff = baseline_perf['avg_travel_time_min'] - results['avg_travel_time_min']
-        time_pct = (time_diff / baseline_perf['avg_travel_time_min']) * 100.0
+    st.markdown("### ⚖️ Senaryo A (Mevcut Durum) vs Senaryo B (Optimize Yeni Yatırımlar)")
+    st.caption("Aynı talep bölgeleri, aynı nüfus katsayıları ve aynı saatlik trafik profiliyle birebir nesnel karşılaştırma:")
+
+    cmp1, cmp2, cmp3 = st.columns(3)
+    with cmp1:
         st.markdown(f"""
-            <div class="kpi-card" style="border-top-color:#38bdf8;">
+            <div class="kpi-card" style="border-top-color:#3b82f6;">
                 <div class="kpi-label">Ortalama Ambulans Süresi</div>
                 <div style="display:flex; justify-content:space-around; align-items:center; margin:8px 0;">
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#ef4444;">{baseline_perf['avg_travel_time_min']:.1f} dk</span>
-                    </div>
-                    <div style="font-size:1.5rem; color:#38bdf8;">➡️</div>
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#10b981;">{results['avg_travel_time_min']:.1f} dk</span>
-                    </div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#ef4444;">{comparison_data['travel_time_a_min']:.1f} dk</span></div>
+                    <div style="font-size:1.4rem; color:#60a5fa;">➡️</div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#10b981;">{comparison_data['travel_time_b_min']:.1f} dk</span></div>
                 </div>
-                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">⚡ -%{time_pct:.1f} DAHA HIZLI ERİŞİM</span>
+                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">⚡ -%{comparison_data['travel_time_saved_pct']:.1f} SÜRE KAZANCI</span>
             </div>
         """, unsafe_allow_html=True)
 
-    with col_cmp2:
-        cov_gain = results['coverage_under_15_min_pct'] - baseline_perf['coverage_15_pct']
+    with cmp2:
         st.markdown(f"""
             <div class="kpi-card" style="border-top-color:#10b981;">
                 <div class="kpi-label">15 Dk Acil Servis Kapsama Oranı</div>
                 <div style="display:flex; justify-content:space-around; align-items:center; margin:8px 0;">
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#ef4444;">%{baseline_perf['coverage_15_pct']:.1f}</span>
-                    </div>
-                    <div style="font-size:1.5rem; color:#10b981;">➡️</div>
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#10b981;">%{results['coverage_under_15_min_pct']:.1f}</span>
-                    </div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#ef4444;">%{comparison_data['coverage_15_a_pct']:.1f}</span></div>
+                    <div style="font-size:1.4rem; color:#10b981;">➡️</div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#10b981;">%{comparison_data['coverage_15_b_pct']:.1f}</span></div>
                 </div>
-                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">📈 +%{cov_gain:.1f} DAHA FAZLA NÜFUS</span>
+                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">📈 +%{comparison_data['coverage_15_gain_pct']:.1f} DAHA FAZLA NÜFUS</span>
             </div>
         """, unsafe_allow_html=True)
 
-    with col_cmp3:
-        max_diff = baseline_perf['max_travel_time_min'] - results['max_travel_time_min']
+    with cmp3:
         st.markdown(f"""
             <div class="kpi-card" style="border-top-color:#ec4899;">
-                <div class="kpi-label">En Uç İlçe Maksimum Ulaşım</div>
+                <div class="kpi-label">En Uç İlçe Maksimum Seyahat</div>
                 <div style="display:flex; justify-content:space-around; align-items:center; margin:8px 0;">
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#ef4444;">{baseline_perf['max_travel_time_min']:.1f} dk</span>
-                    </div>
-                    <div style="font-size:1.5rem; color:#ec4899;">➡️</div>
-                    <div>
-                        <span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/>
-                        <span style="font-size:1.3rem; font-weight:700; color:#10b981;">{results['max_travel_time_min']:.1f} dk</span>
-                    </div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Mevcut:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#ef4444;">{comparison_data['max_time_a_min']:.1f} dk</span></div>
+                    <div style="font-size:1.4rem; color:#ec4899;">➡️</div>
+                    <div><span style="font-size:0.8rem; color:#94a3b8;">Önerilen:</span><br/><span style="font-size:1.3rem; font-weight:700; color:#10b981;">{comparison_data['max_time_b_min']:.1f} dk</span></div>
                 </div>
-                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">🛡️ {max_diff:.1f} DAKİKA KAZANÇ</span>
+                <span style="color:#10b981; font-weight:bold; font-size:0.85rem;">🛡️ {comparison_data['max_time_gain_min']:.1f} DAKİKA KAZANÇ</span>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    st.markdown("#### 📊 Performans Karşılaştırma Grafiği")
-    cmp_chart_df = pd.DataFrame({
-        "Metrik": ["Ortalama Seyahat Süresi (dk)", "15 Dk Kapsama Oranı (%)", "25 Dk Kapsama Oranı (%)"],
-        "Mevcut Durum (Sadece Şehir Hastaneleri)": [baseline_perf["avg_travel_time_min"], baseline_perf["coverage_15_pct"], baseline_perf["coverage_25_pct"]],
-        "Önerilen Çok Merkezli CFLP Modeli": [results["avg_travel_time_min"], results["coverage_under_15_min_pct"], results["coverage_under_25_min_pct"]]
-    }).set_index("Metrik")
-    st.bar_chart(cmp_chart_df)
-    
-    st.markdown("#### 🏆 En Yüksek Zaman Tasarrufu Sağlanan Çeper Semtler & İlçeler")
-    gain_rows = []
-    for ass in results["assignments"]:
-        t1_b, _ = calculate_travel_time_minutes(ass["demand_lat"], ass["demand_lon"], EXISTING_HOSPITALS[0]["lat"], EXISTING_HOSPITALS[0]["lon"], hour=selected_hour)
-        t2_b, _ = calculate_travel_time_minutes(ass["demand_lat"], ass["demand_lon"], EXISTING_HOSPITALS[1]["lat"], EXISTING_HOSPITALS[1]["lon"], hour=selected_hour)
-        b_time = min(t1_b, t2_b)
-        diff = b_time - ass["travel_time_min"]
-        gain_rows.append({
-            "Semt / İlçe": f"{ass['demand_name']} ({ass['district']})",
-            "Nüfus": ass["population"],
-            "Mevcut Şehir Hastanesi Süresi": f"{b_time:.1f} dk",
-            "Önerilen Yeni Hastane Süresi": f"{ass['travel_time_min']:.1f} dk",
-            "Kazanılan Hayat Kurtaran Süre": f"+{diff:.1f} dk",
-            "diff_num": diff
-        })
-    df_gain = pd.DataFrame(gain_rows).sort_values(by="diff_num", ascending=False).drop(columns=["diff_num"]).head(8)
-    st.dataframe(df_gain, width="stretch")
-    
-    st.success(
-        "🎯 **Sunum Argümanı:** 'Hocam, mevcut durumda tüm Ankara nüfusunu Bilkent ve Etlik gibi 2 devasa kampüse yığmak, "
-        "Polatlı, Elmadağ, Sincan ve Pursaklar gibi çeper ilçelerdeki acil vakaların ölüm riskini artırmaktadır. "
-        "Matematiksel optimizasyon modelimiz bütçeyi eşit büyüklükte 5-6 stratejik merkeze paylaştırarak ortalama ambulans "
-        f"süresini {baseline_perf['avg_travel_time_min']:.1f} dakikadan {results['avg_travel_time_min']:.1f} dakikaya indirmektedir.'"
-    )
-
-# ===================== SEKME 3: TOPLU TAŞIMA ANALİZİ =====================
-with tab_transit:
-    st.markdown("### 🚇 Ankara Raylı Sistemleri & EGO Ana Aktarma Merkezleri")
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.markdown("#### 🚉 Kritik Aktarma Merkezleri ve Yolcu Kapasiteleri")
-        df_hubs = pd.DataFrame(TRANSIT_HUBS)[["name", "type", "daily_passengers", "desc"]]
-        df_hubs.columns = ["İstasyon / Aktarma Merkezi", "Tür", "Günlük Yolcu Hacmi", "Açıklama"]
-        st.dataframe(df_hubs, width="stretch")
-        
-    with col_t2:
-        st.markdown("#### 🚇 Ankara Raylı Sistem Hatları Listesi")
-        lines_summary = []
-        for line in TRANSIT_LINES:
-            lines_summary.append({
-                "Hat Adı": line["name"].split(" (")[0],
-                "Tür": line["type"],
-                "Güzergah": line["name"].split(" (")[1].replace(")", "") if "(" in line["name"] else "Ankara İçi"
-            })
-        st.dataframe(pd.DataFrame(lines_summary), width="stretch")
-
-# ===================== SEKME 4: GRAFİKLER & TABLO =====================
-with tab_analysis:
-    st.markdown("### 📊 Hastane Yükü ve İlçe Bazlı Erişim Performansı")
-    col_a1, col_a2 = st.columns(2)
-    with col_a1:
-        st.markdown("#### Hastane Yüklenen Nüfus vs Kapasite (Kişi)")
-        chart_df = pd.DataFrame([{
-            "Hastane": h["name"].split(" - ")[0],
-            "Yüklenen Nüfus": h["allocated_population"],
-            "Kapasite Limiti": h["capacity"]
-        } for h in results["selected_hospitals"]]).set_index("Hastane")
-        st.bar_chart(chart_df)
-        
-    with col_a2:
-        st.markdown("#### Yapım ve Arsa Maliyeti (Milyon TL)")
-        cost_df = pd.DataFrame([{
-            "Hastane": h["name"].split(" - ")[0],
-            "Maliyet (M TL)": h["cost_million_tl"]
-        } for h in results["selected_hospitals"]]).set_index("Hastane")
-        st.bar_chart(cost_df)
-        
-    st.markdown("---")
-    st.markdown("#### 📋 Detaylı Semt ve Talep Tahsis Dökümü")
-    df_ass = pd.DataFrame(results["assignments"])[[
-        "demand_name", "district", "population", "hospital_name", "travel_time_min", "distance_km"
+    st.markdown("#### 🏆 Yeni Yatırımlardan En Fazla Hayat Kurtaran Kazanım Sağlayan İlk 8 Semt")
+    df_gains = pd.DataFrame(comparison_data["top_gaining_districts"])[[
+        "demand_name", "district", "population", "scenario_a_time_min", "scenario_b_time_min", "time_saved_min", "assigned_facility"
     ]]
-    df_ass.columns = ["Semt/Bölge", "İlçe", "Nüfus", "Atanan Hastane", "Trafikli Ulaşım Süresi (dk)", "Mesafe (km)"]
-    st.dataframe(df_ass.sort_values(by="Trafikli Ulaşım Süresi (dk)", ascending=False), width="stretch")
+    df_gains.columns = ["Semt / Bölge", "İlçe", "Nüfus", "Mevcut Süre (dk)", "Önerilen Süre (dk)", "Zaman Kazancı (dk)", "Hizmet Veren Tesis"]
+    st.dataframe(df_gains, use_container_width=True)
+
+# ===================== SEKME 3: VERİ ŞEFFAFLIĞI =====================
+with tab_data:
+    st.markdown("### 📋 Veri Kaynakları ve Doğruluk Derecesi (Provenance)")
+    st.markdown("""
+    Bu sistemde **doğrulanmış resmi kamu verileri** ile **senaryo simülasyon varsayımları** birbirinden kesin çizgilerle ayrılmıştır.
+    """)
+
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.markdown("#### 🏢 Doğrulanmış Resmi Kamu Hastaneleri (20 Tesis)")
+        df_ver = pd.DataFrame([h.to_dict() for h in verified_hospitals])[[
+            "name", "district", "facility_type", "bed_capacity", "annual_emergency_capacity", "source"
+        ]]
+        df_ver.columns = ["Hastane Adı", "İlçe", "Tür", "Yatak", "Yıllık Kapasite", "Resmi Kaynak"]
+        st.dataframe(df_ver, use_container_width=True)
+
+    with col_d2:
+        st.markdown("#### 🏥 Yeni Yatırım Aday Lokasyonları (Simülasyon - 10 Tesis)")
+        df_cand = pd.DataFrame([c.to_dict() for c in candidate_hospitals])[[
+            "name", "district", "investment_cost_million_tl", "bed_capacity", "annual_emergency_capacity", "source"
+        ]]
+        df_cand.columns = ["Aday Tesis Adı", "İlçe", "Maliyet (M TL)", "Hedef Yatak", "Yıllık Kapasite Kotası", "Simülasyon Dayanağı"]
+        st.dataframe(df_cand, use_container_width=True)
+
+# ===================== SEKME 4: KAPASİTE VE AÇIKTA KALAN TALEP =====================
+with tab_capacity:
+    st.markdown("### 🚨 Kapasite Kısıtları ve Açıkta Kalan Talep Denetimi")
+    st.caption("CFLP modelinde hiçbir talep bölgesi sessizce yok sayılmaz; karşılanamayan talep elastik slack değişkeniyle (u_i) raporlanır:")
+
+    if results_active.get("has_unmet_demand"):
+        st.error(f"❌ Aktif senaryoda toplam {results_active['unmet_demand_total']:,} acil başvuru talebi (%{results_active['unmet_percentage']:.2f}) karşılanamamıştır!")
+        st.markdown("#### Açıkta Kalan Talep Bölgeleri Dökümü:")
+        df_unmet = pd.DataFrame(results_active["unmet_zones"])[[
+            "zone_name", "district", "unmet_population", "unmet_annual_demand", "unmet_fraction"
+        ]]
+        df_unmet.columns = ["Bölge / Semt", "İlçe", "Açıkta Kalan Nüfus", "Açıkta Kalan Yıllık Acil Talep", "Karşılanamayan Oran"]
+        st.dataframe(df_unmet, use_container_width=True)
+    else:
+        st.success("✅ **Tam Kapsama Sağlandı:** Aktif senaryoda Ankara'nın 5.8 milyonluk nüfusunun tüm acil servis talebi açık tesislerin kapasite sınırları dahilinde karşılanmıştır (Açıkta kalan talep: %0.0).")
 
 # ===================== SEKME 5: MATEMATİKSEL TEORİ =====================
 with tab_theory:
-    st.markdown("### 🎓 Dinamik Trafik Entegreli CFLP Matematiksel Modeli")
+    st.markdown("### 📝 Elastik CFLP Matematiksel Formülasyonu")
     st.markdown(r"""
-    Bu projede standart CFLP formülasyonu, **zamana bağlı dinamik trafik katsayısı $K(t)$** ve **toplu taşıma erişilebilirliği** ile genişletilmiştir:
+    $$\min Z = w_1 \cdot \left(\frac{\sum_{i \in I} \sum_{j \in J} d_i \cdot T_{ij}(t) \cdot x_{ij}}{\text{NormTime}}\right) + w_2 \cdot \left(\frac{\sum_{j \in J_{\text{cand}}} F_j \cdot y_j}{\text{NormCost}}\right) + M \cdot \sum_{i \in I} u_i$$
     
-    #### 1. Dinamik Amaç Fonksiyonu:
-    $$\min Z = w_1 \cdot \left(\frac{\sum_{i \in I} \sum_{j \in J} h_i \cdot T_{ij}(t) \cdot x_{ij}}{\text{NormTime}}\right) + w_2 \cdot \left(\frac{\sum_{j \in J} F_j \cdot y_j}{\text{NormCost}}\right)$$
+    #### Kısıtlar:
+    1. **Elastik Talep Korunumu:** $\sum_{j \in J} x_{ij} + u_i = 1 \quad \forall i \in I$
+    2. **Açık Tesis Mantıksal Bağı:** $x_{ij} \le y_j \quad \forall i \in I, \; \forall j \in J_{\text{cand}}$
+    3. **Kapasite Sınırı:** $\sum_{i \in I} d_i \cdot x_{ij} \le C_j \cdot y_j \quad \forall j \in J$
+    4. **Bütçe / Tesis Sayısı:** $\sum_{j \in J_{\text{cand}}} y_j = p$
+    5. **Değişkenler:** $y_j \in \{0, 1\}, \quad x_{ij} \ge 0, \quad u_i \ge 0$
     
-    Burada:
-    - $T_{ij}(t) = T_{ij}^{\text{baz}} \times K(t)$: $t$ saatindeki trafik sıkışıklık çarpanına bağlı gerçek sürüş süresi.
-    - $t = 18$ (Akşam zirvesi) iken $K(18) = 1.85$ (Seyahat süreleri %85 artar).
-    - $t = 02$ (Gece) iken $K(2) = 1.00$ (Serbest akış).
-    - $h_i$: $i$ bölgesinin nüfusu (sağlık talebi ağırlığı).
-    - $F_j$: $j$ aday hastanesinin inşaat ve arsa kamulaştırma maliyeti (Milyon TL).
-    - $w_1, w_2$: Karar vericinin belirlediği seyahat süresi ve maliyet ağırlıkları ($w_1 + w_2 = 1.0$).
-    
-    #### 2. Kısıtlar:
-    1. $\sum_{j \in J} x_{ij} = 1 \quad \forall i \in I$: Her semtin sağlık talebi eksiksiz bir hastaneye bağlanmalıdır.
-    2. $x_{ij} \le y_j \quad \forall i, j$: Talep yalnızca fiziksel olarak açılmış ($y_j = 1$) bir hastaneye atanabilir.
-    3. $\sum_{i \in I} h_i x_{ij} \le C_j y_j \quad \forall j \in J$: Hastaneye bağlanan nüfus, tesisin yatak/hizmet kapasitesini ($C_j$) aşamaz (CFLP kısıtı).
-    4. $\sum_{j \in J} y_j = p$: Açılacak toplam hastane sayısı bütçe ve planlama gereği tam olarak $p$ adettir.
-    5. $y_j \in \{0, 1\} \quad \forall j \in J$: Tesis açma karar değişkeni ikili (binary).
-    6. $0 \le x_{ij} \le 1 \quad \forall i \in I, j \in J$: Hizmet tahsis oranı.
+    *Burada $u_i$ açıkta kalan talep fraksiyonunu, $M = 1000$ ise karşılanamayan talep ceza katsayısını temsil eder.*
     """)
