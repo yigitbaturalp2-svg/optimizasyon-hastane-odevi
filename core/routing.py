@@ -9,7 +9,7 @@ Uyarı: Gerçek zamanlı trafik sensörü bulunmadığında simülasyon profili 
 import math
 import urllib.request
 import json
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any, List, Optional
 from core.models import DemandZone, Facility
 
 # Ankara saatlik simülasyon trafik çarpanı K(t)
@@ -19,6 +19,19 @@ HOURLY_TRAFFIC_PROFILE = {
     12: 1.15, 13: 1.15, 14: 1.20, 15: 1.30, 16: 1.45, 17: 1.70,
     18: 1.85, 19: 1.65, 20: 1.40, 21: 1.25, 22: 1.10, 23: 1.05
 }
+
+def is_valid_travel_time(t: Any) -> bool:
+    """
+    Seyahat süresinin geçerli, sonlu ve negatif olmayan bir sayı olduğunu doğrular.
+    float('inf'), float('nan') veya negatif değerler için False döner.
+    """
+    if t is None:
+        return False
+    try:
+        val = float(t)
+        return math.isfinite(val) and val >= 0.0
+    except (ValueError, TypeError):
+        return False
 
 def get_traffic_multiplier(hour: int = 13) -> float:
     """Belirtilen saat için simülasyon trafik çarpanını döner."""
@@ -39,6 +52,7 @@ def try_osrm_route(lat1: float, lon1: float, lat2: float, lon2: float) -> Tuple[
     """
     Yerel veya genel OSRM yönlendirme servisine bağlanmayı dener.
     Dönüş: (başarılı_mı, mesafe_km, süre_dakika)
+    Metre -> km ve saniye -> dakika birim dönüşümleri açıkça uygulanır.
     """
     url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
     try:
@@ -48,9 +62,10 @@ def try_osrm_route(lat1: float, lon1: float, lat2: float, lon2: float) -> Tuple[
                 data = json.loads(response.read().decode())
                 if data.get("code") == "Ok" and data.get("routes"):
                     route = data["routes"][0]
-                    dist_km = route["distance"] / 1000.0
-                    duration_min = route["duration"] / 60.0
-                    return True, round(dist_km, 2), round(duration_min, 1)
+                    dist_km = float(route.get("distance", 0.0)) / 1000.0
+                    duration_min = float(route.get("duration", 0.0)) / 60.0
+                    if is_valid_travel_time(duration_min) and is_valid_travel_time(dist_km):
+                        return True, round(dist_km, 2), round(duration_min, 1)
     except Exception:
         pass
     return False, 0.0, 0.0
@@ -115,15 +130,17 @@ def build_travel_matrix(
     Tüm talep bölgeleri ile tesisler arasındaki süre ve mesafe matrislerini üretir.
     Dönüş: (time_matrix, distance_matrix)
     """
-    time_matrix = {}
-    dist_matrix = {}
+    time_matrix: Dict[str, Dict[str, float]] = {}
+    dist_matrix: Dict[str, Dict[str, float]] = {}
     
     for dem in demand_zones:
         time_matrix[dem.id] = {}
         dist_matrix[dem.id] = {}
         for fac in facilities:
             res = calculate_travel_time(dem.lat, dem.lon, fac.lat, fac.lon, hour=hour)
-            time_matrix[dem.id][fac.id] = res["travel_time_min"]
-            dist_matrix[dem.id][fac.id] = res["distance_km"]
+            t = res["travel_time_min"]
+            d = res["distance_km"]
+            time_matrix[dem.id][fac.id] = t if is_valid_travel_time(t) else float('inf')
+            dist_matrix[dem.id][fac.id] = d if is_valid_travel_time(d) else float('inf')
             
     return time_matrix, dist_matrix

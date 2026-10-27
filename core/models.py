@@ -41,6 +41,7 @@ class Facility:
     confidence_score: float = 1.0         # 1.0 = Resmi doğrulanmış, 0.5 = Tahmini
     is_existing: bool = True
     operational_status: str = "Aktif Hizmette"
+    is_comprehensive_hospital: bool = False  # Varsayılan: False. Doğrulanmamış tesisler kapsamlı sayılmaz.
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -57,8 +58,26 @@ class Facility:
             "source": self.source,
             "confidence_score": self.confidence_score,
             "is_existing": self.is_existing,
-            "operational_status": self.operational_status
+            "operational_status": self.operational_status,
+            "is_comprehensive_hospital": self.is_comprehensive_hospital
         }
+
+
+def is_verified_comprehensive_hospital(facility: Facility) -> bool:
+    """
+    Bir tesisin kapsamlı (üçüncü basamak / tam teşekküllü) hastane olup olmadığını doğrular.
+    Kural: Varsayılan olarak True KABUL EDİLMEZ.
+    Tesis açıkça is_comprehensive_hospital=True olarak işaretlenmiş olmalı ve
+    geçerli bir hastane türüne (Şehir, Devlet, Üniversite) sahip olmalıdır.
+    """
+    if not getattr(facility, "is_comprehensive_hospital", False):
+        return False
+    comprehensive_types = {
+        FacilityType.SEHIR_HASTANESI,
+        FacilityType.DEVLET_HASTANESI,
+        FacilityType.UNIVERSITE_HASTANESI
+    }
+    return facility.facility_type in comprehensive_types
 
 
 @dataclass
@@ -93,9 +112,11 @@ class OptimizationScenario:
     """Optimizasyon çalıştırma senaryosu."""
     name: str
     description: str
-    p_candidates: int                     # Açılacak yeni aday tesis sayısı
-    weight_travel_time: float             # Ulaşım süresi ağırlığı [0, 1]
-    weight_investment_cost: float         # Yatırım maliyeti ağırlığı [0, 1]
-    hour: int = 13                        # Günün saati [0, 23]
-    enable_capacity_limits: bool = True   # CFLP vs UFLP
-    penalize_unmet_demand: float = 1000.0 # Karşılanamayan talep ceza katsayısı (M)
+    p_candidates: int                               # Açılacak yeni aday tesis sayısı
+    weight_travel_time: float                       # Ulaşım süresi ağırlığı [0, 1]
+    weight_investment_cost: float                   # Yatırım maliyeti ağırlığı [0, 1]
+    hour: int = 13                                  # Günün saati [0, 23]
+    enable_capacity_limits: bool = True             # CFLP vs UFLP
+    penalize_unmet_demand: float = 1000.0           # Karşılanamayan talep ceza katsayısı (M)
+    use_lexicographic: bool = True                  # İki aşamalı Lexicographic optimizasyon
+    max_travel_time_cutoff_min: Optional[float] = None  # Maksimum erişilebilirlik kesim eşiği (dakika)

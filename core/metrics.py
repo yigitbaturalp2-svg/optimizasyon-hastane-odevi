@@ -12,8 +12,10 @@ def compare_scenarios(scenario_a_results: Dict[str, Any], scenario_b_results: Di
     Senaryo A: Genellikle Mevcut Durum (p=0)
     Senaryo B: Genellikle Önerilen Yatırımlar (p>0)
     """
-    time_a = scenario_a_results.get("avg_travel_time_min", 0.0)
-    time_b = scenario_b_results.get("avg_travel_time_min", 0.0)
+    raw_time_a = scenario_a_results.get("avg_travel_time_min")
+    raw_time_b = scenario_b_results.get("avg_travel_time_min")
+    time_a = raw_time_a if raw_time_a is not None else 0.0
+    time_b = raw_time_b if raw_time_b is not None else 0.0
     time_diff = time_a - time_b
     time_diff_pct = round((time_diff / time_a) * 100.0, 1) if time_a > 0 else 0.0
 

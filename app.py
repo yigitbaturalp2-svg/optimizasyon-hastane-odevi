@@ -227,10 +227,12 @@ if results_active.get("has_unmet_demand"):
 # ----------------- ÜST KPI KARTLARI -----------------
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
+    avg_t = results_active['avg_travel_time_min']
+    avg_t_str = f"{avg_t:.1f} <span style='font-size:0.9rem; color:#64748b;'>dk</span>" if avg_t is not None else "<span style='font-size:1.1rem; color:#94a3b8;'>Tanımsız</span>"
     st.markdown(f"""
         <div class="kpi-card" style="border-top-color:#3b82f6;">
             <div class="kpi-label">Ort. Ulaşım Süresi</div>
-            <div class="kpi-val">{results_active['avg_travel_time_min']:.1f} <span style="font-size:0.9rem; color:#64748b;">dk</span></div>
+            <div class="kpi-val">{avg_t_str}</div>
         </div>
     """, unsafe_allow_html=True)
 
